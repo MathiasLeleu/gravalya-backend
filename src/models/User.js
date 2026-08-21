@@ -1,5 +1,6 @@
 import { sequelize } from "./connection.js";
 import { Model, DataTypes } from "sequelize";
+import argon2 from "argon2";
 
 export class User extends Model {}
 
@@ -30,6 +31,20 @@ User.init(
     },
         {
             sequelize,
-            tableName: "users"
+            tableName: "users",
+            hooks: {
+                beforeCreate: async (user) => {
+                    if (user.password) {
+                        user.password = await argon2.hash(user.password);
+                    }
+                    user.password = await argon2.hash(user.password);
+                },
+                beforeUpdate: async (user) => {
+                    if (user.password) {
+                        user.password = await argon2.hash(user.password);
+                    }
+                }
+            }
+
         }
 );
