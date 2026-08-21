@@ -37,7 +37,6 @@ User.init(
                     if (user.password) {
                         user.password = await argon2.hash(user.password);
                     }
-                    user.password = await argon2.hash(user.password);
                 },
                 beforeUpdate: async (user) => {
                     if (user.password) {

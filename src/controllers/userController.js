@@ -110,7 +110,26 @@ const userController = {
         res.status(200).json(updatedUserWithoutPassword);
 
     },
+
     // Delete a user
+    async deleteUser(req, res) {
+        const userId = parseInt(req.params.id);
+
+        //if(req.user?.id !== userId) {
+        //    return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à supprimer cet utilisateur.' });
+        //}
+
+        const user = await User.findByPk(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+        }
+
+        await user.destroy();
+
+        res.status(200).json({ message: 'Utilisateur supprimé avec succès.' });
+
+    }   
 };
 
 export { userController };
