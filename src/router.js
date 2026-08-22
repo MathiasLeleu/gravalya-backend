@@ -1,12 +1,60 @@
 import { Router } from 'express'
 import { userController } from './controllers/userController.js'
+import { orderController } from './controllers/orderController.js'
 
 const router = Router();
 
-router.get('/users', userController.showAllUsers);
-router.get('/users/:id', userController.showOneUser);
-router.post('/users', userController.createUser);
-router.patch('/users/:id', userController.updateUser);
-router.delete('/users/:id', userController.deleteUser);
+// USER
+router.get('/users', userController.showAllUsers); //
+router.get('/users/:id', userController.showOneUser); // ADMIN + USER OWNER
+router.post('/users', userController.createUser); 
+router.patch('/users/:id', userController.updateUser); // ADMIN + USER OWNER
+router.delete('/users/:id', userController.deleteUser); // ADMIN + USER OWNER
+
+// ORDER
+router.get('/orders', orderController.showAllOrders); // ADMIN
+router.get('/orders/:id', orderController.showOneOrder); // ADMIN + ORDER OWNER
+// router.post('/orders', orderController.createOrder); 
+// router.patch('/orders/:id', orderController.updateOrderStatus); // ADMIN
+
+
+// PRODUCT
+// router.get('/products', productController.showAllProducts);
+// router.get('/products/:id', productController.showOneProduct);
+// router.post('/products', productController.createProduct); // ADMIN
+// router.patch('/products/:id', productController.updateProduct); // ADMIN
+// router.delete('/products/:id', productController.deleteProduct); // ADMIN
+
+
+// CATEGORY
+// router.get('/categories', categoryController.showAllCategories);
+// router.get('/categories/:id', categoryController.showOneCategory);
+// router.post('/categories', categoryController.createCategory); // ADMIN
+// router.patch('/categories/:id', categoryController.updateCategory); // ADMIN
+// router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
+
+
+// SHIPPING METHOD
+// router.get('/shipping-methods', shippingMethodController.showAllShippingMethods);
+// router.get('/shipping-methods/:id', shippingMethodController.showOneShippingMethod);
+// router.post('/shipping-methods', shippingMethodController.createShippingMethod); // ADMIN
+// router.patch('/shipping-methods/:id', shippingMethodController.updateShippingMethod); // ADMIN
+// router.delete('/shipping-methods/:id', shippingMethodController.deleteShippingMethod); // ADMIN
+
+
+// SHIPPING RATE
+// router.get('/shipping-rates', shippingRateController.showAllShippingRates);
+// router.get('/shipping-rates/:id', shippingRateController.showOneShippingRate);
+// router.post('/shipping-rates', shippingRateController.createShippingRate); // ADMIN
+// router.patch('/shipping-rates/:id', shippingRateController.updateShippingRate); // ADMIN
+// router.delete('/shipping-rates/:id', shippingRateController.deleteShippingRate); // ADMIN
+
+
+// ORDER RELAY POINT
+// router.get('/order-relay-points', orderRelayPointController.showAllOrderRelayPoints);
+// router.get('/order-relay-points/:id', orderRelayPointController.showOneOrderRelayPoint);
+// router.post('/order-relay-points', orderRelayPointController.createOrderRelayPoint);
+// router.patch('/order-relay-points/:id', orderRelayPointController.updateOrderRelayPoint);
+// router.delete('/order-relay-points/:id', orderRelayPointController.deleteOrderRelayPoint);
 
 export { router }
