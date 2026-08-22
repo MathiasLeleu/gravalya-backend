@@ -68,6 +68,10 @@ const userController = {
         const userId = parseInt(req.params.id);
         const user = await User.findByPk(userId);
 
+        //if(req.user?.id !== userId) {
+        //    return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à modifier les données de cet utilisateur.' });
+        //}
+
         if (!user) {
             notFound("Utilisateur non trouvé.");
         }

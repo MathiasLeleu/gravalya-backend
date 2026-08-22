@@ -1,13 +1,15 @@
 import { Router } from 'express'
 import { userController } from './controllers/userController.js'
 import { orderController } from './controllers/orderController.js'
+import { productController } from './controllers/productController.js'
 
 const router = Router();
 
 // USER
 router.get('/users', userController.showAllUsers); //
 router.get('/users/:id', userController.showOneUser); // ADMIN + USER OWNER
-router.post('/users', userController.createUser); 
+router.post('/users', userController.createUser);
+// TODO AUTH: Réactiver la vérification de req.user lorsque JWT sera implémenté.
 router.patch('/users/:id', userController.updateUser); // ADMIN + USER OWNER
 router.delete('/users/:id', userController.deleteUser); // ADMIN + USER OWNER
 
@@ -19,11 +21,10 @@ router.get('/orders/:id', orderController.showOneOrder); // ADMIN + ORDER OWNER
 
 
 // PRODUCT
-// router.get('/products', productController.showAllProducts);
-// router.get('/products/:id', productController.showOneProduct);
-// router.post('/products', productController.createProduct); // ADMIN
-// router.patch('/products/:id', productController.updateProduct); // ADMIN
-// router.delete('/products/:id', productController.deleteProduct); // ADMIN
+router.get('/products', productController.showAllProducts);
+router.get('/products/:id', productController.showOneProduct);
+router.post('/products', productController.createProduct); // ADMIN
+router.patch('/products/:id', productController.updateProduct); // ADMIN
 
 
 // CATEGORY
