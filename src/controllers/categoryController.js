@@ -1,6 +1,6 @@
 import { Category } from '../models/Category.js'
 import { Product } from '../models/Product.js'
-import { notFound } from './utils/errorHandlers.js'
+import { notFound } from './utils/error.js'
 
 const categoryController = {
 

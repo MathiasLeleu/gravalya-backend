@@ -3,6 +3,7 @@ import { userController } from './controllers/userController.js'
 import { orderController } from './controllers/orderController.js'
 import { productController } from './controllers/productController.js'
 import { categoryController } from './controllers/categoryController.js'
+import { shippingMethodController } from './controllers/shippingMethodController.js'
 
 const router = Router();
 
@@ -37,11 +38,10 @@ router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
 
 
 // SHIPPING METHOD
-// router.get('/shipping-methods', shippingMethodController.showAllShippingMethods);
-// router.get('/shipping-methods/:id', shippingMethodController.showOneShippingMethod);
-// router.post('/shipping-methods', shippingMethodController.createShippingMethod); // ADMIN
-// router.patch('/shipping-methods/:id', shippingMethodController.updateShippingMethod); // ADMIN
-// router.delete('/shipping-methods/:id', shippingMethodController.deleteShippingMethod); // ADMIN
+router.get('/shipping-methods', shippingMethodController.showAllShippingMethods);
+router.get('/shipping-methods/:id', shippingMethodController.showOneShippingMethod);
+router.post('/shipping-methods', shippingMethodController.createShippingMethod); // ADMIN
+router.patch('/shipping-methods/:id', shippingMethodController.updateShippingMethod); // ADMIN
 
 
 // SHIPPING RATE
