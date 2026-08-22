@@ -4,6 +4,7 @@ import { orderController } from './controllers/orderController.js'
 import { productController } from './controllers/productController.js'
 import { categoryController } from './controllers/categoryController.js'
 import { shippingMethodController } from './controllers/shippingMethodController.js'
+import { shippingRateController } from './controllers/shippingRateController.js'
 
 const router = Router();
 
@@ -45,11 +46,10 @@ router.patch('/shipping-methods/:id', shippingMethodController.updateShippingMet
 
 
 // SHIPPING RATE
-// router.get('/shipping-rates', shippingRateController.showAllShippingRates);
-// router.get('/shipping-rates/:id', shippingRateController.showOneShippingRate);
-// router.post('/shipping-rates', shippingRateController.createShippingRate); // ADMIN
-// router.patch('/shipping-rates/:id', shippingRateController.updateShippingRate); // ADMIN
-// router.delete('/shipping-rates/:id', shippingRateController.deleteShippingRate); // ADMIN
+router.get('/shipping-rates', shippingRateController.showAllShippingRates);
+router.get('/shipping-rates/:id', shippingRateController.showOneShippingRate);
+router.post('/shipping-rates', shippingRateController.createShippingRate); // ADMIN
+router.patch('/shipping-rates/:id', shippingRateController.updateShippingRate); // ADMIN
 
 
 // ORDER RELAY POINT
