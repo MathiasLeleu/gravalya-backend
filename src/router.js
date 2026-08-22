@@ -52,11 +52,4 @@ router.post('/shipping-rates', shippingRateController.createShippingRate); // AD
 router.patch('/shipping-rates/:id', shippingRateController.updateShippingRate); // ADMIN
 
 
-// ORDER RELAY POINT
-// router.get('/order-relay-points', orderRelayPointController.showAllOrderRelayPoints);
-// router.get('/order-relay-points/:id', orderRelayPointController.showOneOrderRelayPoint);
-// router.post('/order-relay-points', orderRelayPointController.createOrderRelayPoint);
-// router.patch('/order-relay-points/:id', orderRelayPointController.updateOrderRelayPoint);
-// router.delete('/order-relay-points/:id', orderRelayPointController.deleteOrderRelayPoint);
-
 export { router }
