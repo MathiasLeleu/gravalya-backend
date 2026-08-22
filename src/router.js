@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { userController } from './controllers/userController.js'
 import { orderController } from './controllers/orderController.js'
 import { productController } from './controllers/productController.js'
+import { categoryController } from './controllers/categoryController.js'
 
 const router = Router();
 
@@ -28,11 +29,11 @@ router.patch('/products/:id', productController.updateProduct); // ADMIN
 
 
 // CATEGORY
-// router.get('/categories', categoryController.showAllCategories);
-// router.get('/categories/:id', categoryController.showOneCategory);
-// router.post('/categories', categoryController.createCategory); // ADMIN
-// router.patch('/categories/:id', categoryController.updateCategory); // ADMIN
-// router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
+router.get('/categories', categoryController.showAllCategories);
+router.get('/categories/:id', categoryController.showOneCategory);
+router.post('/categories', categoryController.createCategory); // ADMIN
+router.patch('/categories/:id', categoryController.updateCategory); // ADMIN
+router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
 
 
 // SHIPPING METHOD
