@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "type":"module",
-  "scripts": {
+"scripts": {
+    "dev": "node --watch index.js",
+    "create": "node ./src/seeding/createTables.js",
+    "seed": "node ./src/seeding/seedTables.js",
+    "reset": "npm run create && npm run seed",
     "test": "echo \"Error: no test specified\" && exit 1"
-  },
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
