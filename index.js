@@ -4,6 +4,7 @@ import express from "express"
 import cors from "cors"
 
 import { router } from "./src/router.js"
+import './src/models/associations.js'
 
 const app = express();
 

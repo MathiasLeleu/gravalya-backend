@@ -1,4 +1,4 @@
-import { Product } from '../models/productModel.js';
+import { Product } from '../models/Product.js';
 import { badRequest, conflict, notFound } from '../utils/error.js';
 
 const productController = {

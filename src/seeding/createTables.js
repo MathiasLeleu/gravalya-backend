@@ -1,4 +1,4 @@
-import { sequelize } from "../models/association.js";
+import { sequelize } from "../models/associations.js";
 
 async function runMigration() {
     try {
