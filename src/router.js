@@ -19,8 +19,9 @@ router.delete('/users/:id', userController.deleteUser); // ADMIN + USER OWNER
 // ORDER
 router.get('/orders', orderController.showAllOrders); // ADMIN
 router.get('/orders/:id', orderController.showOneOrder); // ADMIN + ORDER OWNER
-// router.post('/orders', orderController.createOrder); 
-// router.patch('/orders/:id', orderController.updateOrderStatus); // ADMIN
+router.post('/orders', orderController.createOrder); 
+router.patch('/orders/:id', orderController.updateOrder); // ADMIN
+router.delete('/orders/:id', orderController.deleteOrder); // ADMIN
 
 
 // PRODUCT
