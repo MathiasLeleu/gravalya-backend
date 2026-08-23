@@ -1,5 +1,5 @@
 import { Product } from '../models/productModel.js';
-import { notFound } from '../utils/error.js';
+import { badRequest, conflict, notFound } from '../utils/error.js';
 
 const productController = {
 
@@ -37,12 +37,12 @@ const productController = {
         const { name, description, price, weight, height, length, width, stockQuantity, categoryId } = req.body;
 
         if (!name || !description || !price || !weight || !height || !length || !width || !stockQuantity || !categoryId) {
-            return res.status(400).json({ message: 'Tous les champs sont requis.' });
+            badRequest('Tous les champs sont requis.');
         }
 
         const existingName = await Product.findOne({ where: { name: name } });
         if (existingName) {
-            return res.status(409).json({ message: 'Ce nom de produit est déjà utilisé.' });
+            conflict('Ce nom de produit est déjà utilisé.');
         }
 
         const newProduct = await Product.create({

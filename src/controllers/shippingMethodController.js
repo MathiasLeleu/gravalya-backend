@@ -1,12 +1,12 @@
 import { ShippingMethod } from "../models/Shipping_Method.js";
-import { notFound } from "../utils/error.js";
+import { conflict, notFound } from "../utils/error.js";
 
 const shippingMethodController = {
 
     // Get all shipping methods
     async showAllShippingMethods(req, res) {
         const shippingMethods = await ShippingMethod.findAll();
-        res.status(200).json(shippingMethods)
+        res.status(200).json(shippingMethods);
     },
 
     // Get one shipping method
@@ -18,7 +18,7 @@ const shippingMethodController = {
             notFound("Mode de livraison non trouvé.");
         }
 
-        res.status(200).json(shippingMethod)
+        res.status(200).json(shippingMethod);
     },
 
     // Create a new shipping method
@@ -32,14 +32,14 @@ const shippingMethodController = {
         });
 
         if (existingShippingMethod) {
-            return res.status(409).json({ message: "Ce mode de livraison existe déjà." });
+            conflict("Ce mode de livraison existe déjà.");
         }
 
         const newShippingMethod = await ShippingMethod.create({
             name, carrier, deliveryType
         });
 
-        res.status(201).json(newShippingMethod)
+        res.status(201).json(newShippingMethod);
     },
 
     // Update an existing shipping method
@@ -48,12 +48,12 @@ const shippingMethodController = {
         const shippingMethod = await ShippingMethod.findByPk(shippingMethodId);
 
         if (!shippingMethod) {
-            notFound("Mode de livraison non trouvé.")
+            notFound("Mode de livraison non trouvé.");
         }
 
         await shippingMethod.update(req.body);
 
-        res.status(200).json(shippingMethod)
+        res.status(200).json(shippingMethod);
     }
 
 }

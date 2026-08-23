@@ -1,6 +1,6 @@
 import { User } from '../models/User.js';
 import argon2 from 'argon2';
-import { notFound } from '../utils/error.js';
+import { badRequest, conflict, notFound } from '../utils/error.js';
 
 const userController = {
 
@@ -9,6 +9,7 @@ const userController = {
         const users = await User.findAll({
             attributes: { exclude: ['password'] }
         });
+
         res.status(200).json(users);
     },
 
@@ -18,8 +19,10 @@ const userController = {
         const user = await User.findByPk(userId, {
             attributes: { exclude: ['password'] },
             include: [
-                { association: 'orders', 
-                    include: ['orderLines']},
+                {
+                    association: 'orders',
+                    include: ['orderLines']
+                },
             ]
         });
 
@@ -35,16 +38,21 @@ const userController = {
         const { firstName, lastName, email, password, confirmPassword } = req.body;
 
         if (!firstName || !lastName || !email || !password || !confirmPassword) {
-            return res.status(400).json({ message: 'Les champs Prénom, Nom, Email, Mot de passe et Confirmation du mot de passe sont requis.' });
+            badRequest(
+                'Les champs Prénom, Nom, Email, Mot de passe et Confirmation du mot de passe sont requis.'
+            );
         }
 
         if (password !== confirmPassword) {
-            return res.status(400).json({ message: 'Le mot de passe et sa confirmation ne correspondent pas.' });
+            badRequest('Le mot de passe et sa confirmation ne correspondent pas.');
         }
 
-        const existingEmail = await User.findOne({ where: {email: email} });
+        const existingEmail = await User.findOne({
+            where: { email }
+        });
+
         if (existingEmail) {
-            return res.status(409).json({ message: 'Cet email est déjà utilisé.' });
+            conflict('Cet email est déjà utilisé.');
         }
 
         const newUser = await User.create({
@@ -54,87 +62,116 @@ const userController = {
             password,
         });
 
-        const newUserWithoutPassword = { 
-            firstName: newUser.firstName, 
-            lastName: newUser.lastName, 
-            email: newUser.email, 
-            role: newUser.role };
-        res.status(201).json(newUserWithoutPassword);
+        const newUserWithoutPassword = {
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+            email: newUser.email,
+            role: newUser.role
+        };
 
+        res.status(201).json(newUserWithoutPassword);
     },
-    
+
     // Update an existing user
     async updateUser(req, res) {
         const userId = parseInt(req.params.id);
         const user = await User.findByPk(userId);
 
-        //if(req.user?.id !== userId) {
-        //    return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à modifier les données de cet utilisateur.' });
-        //}
+        // TODO: Réactiver lorsque l'authentification sera mise en place.
+        // if (req.user?.id !== userId) {
+        //     return res.status(403).json({
+        //         message: 'Vous n\'êtes pas autorisé à modifier les données de cet utilisateur.'
+        //     });
+        // }
 
         if (!user) {
             notFound("Utilisateur non trouvé.");
         }
 
-        const { firstName, lastName, email, password, newPassword, confirmPassword } = req.body;
+        const {
+            firstName,
+            lastName,
+            email,
+            password,
+            newPassword,
+            confirmPassword
+        } = req.body;
 
-        if (firstName) { user.firstName = firstName; }
-        if (lastName) { user.lastName = lastName; }
+        if (firstName) {
+            user.firstName = firstName;
+        }
+
+        if (lastName) {
+            user.lastName = lastName;
+        }
+
         if (email) {
             const existingEmail = await User.findOne({
                 where: { email }
             });
 
             if (existingEmail && existingEmail.id !== user.id) {
-                return res.status(409).json({ message: 'Cet email est déjà utilisé.' });
+                conflict('Cet email est déjà utilisé.');
             }
-            user.email = email;
-         }
-        if (password) {
 
+            user.email = email;
+        }
+
+        if (password) {
             const hashedPassword = user.password;
 
-            const isMatching = await argon2.verify(hashedPassword, password);
+            const isMatching = await argon2.verify(
+                hashedPassword,
+                password
+            );
 
             if (!isMatching) {
-                return res.status(400).json({ message: 'Le mot de passe actuel est incorrect.' });
+                badRequest('Le mot de passe actuel est incorrect.');
             }
+
             if (newPassword !== confirmPassword) {
-                return res.status(400).json({ message: 'Le mot de passe et sa confirmation ne correspondent pas.' });
+                badRequest('Le mot de passe et sa confirmation ne correspondent pas.');
             }
-            user.password = newPassword
-        };
+
+            user.password = newPassword;
+        }
 
         await user.save();
-        const updatedUserWithoutPassword = { 
-            firstName: user.firstName, 
-            lastName: user.lastName, 
-            email: user.email, 
-            role: user.role };
-        res.status(200).json(updatedUserWithoutPassword);
 
+        const updatedUserWithoutPassword = {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role
+        };
+
+        res.status(200).json(updatedUserWithoutPassword);
     },
 
     // Delete a user
     async deleteUser(req, res) {
         const userId = parseInt(req.params.id);
 
-        //if(req.user?.id !== userId) {
-        //    return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à supprimer cet utilisateur.' });
-        //}
+        // TODO: Réactiver lorsque l'authentification sera mise en place.
+        // if (req.user?.id !== userId) {
+        //     return res.status(403).json({
+        //         message: 'Vous n\'êtes pas autorisé à supprimer cet utilisateur.'
+        //     });
+        // }
 
         const user = await User.findByPk(userId);
 
         if (!user) {
-            return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+            notFound('Utilisateur non trouvé.');
         }
 
         await user.destroy();
 
-        res.status(200).json({ message: 'Utilisateur supprimé avec succès.' });
+        res.status(200).json({
+            message: 'Utilisateur supprimé avec succès.'
+        });
+    }
 
-    }   
 };
 
 export { userController };
-

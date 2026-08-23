@@ -1,4 +1,9 @@
 import { Order } from '../models/orderModel.js';
+import { OrderLine } from '../models/Order_Line.js';
+import { Product } from '../models/Product.js';
+import { ShippingMethod } from '../models/Shipping_Method.js';
+import { ShippingRate } from '../models/Shipping_Rate.js';
+import { OrderRelayPoint } from '../models/Order_Relay_Point.js';
 import { notFound } from '../utils/error.js';
 
 const orderController = {
@@ -18,6 +23,7 @@ const orderController = {
                 { association: 'user' },
                 { association: 'shippingMethod' },
                 { association: 'shippingRate' },
+                { association: 'orderRelayPoint' },
             ]
         });
 
@@ -29,6 +35,7 @@ const orderController = {
     },
 
     // Create a new order
+    
 
     // Update an order's status
 

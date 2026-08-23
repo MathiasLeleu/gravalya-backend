@@ -1,6 +1,6 @@
 import { Category } from '../models/Category.js'
 import { Product } from '../models/Product.js'
-import { notFound } from './utils/error.js'
+import { notFound, conflict } from './utils/error.js'
 
 const categoryController = {
 
@@ -31,7 +31,7 @@ const categoryController = {
         });
 
         if (existingName) {
-            return res.status(409).json({ message: 'Ce nom de catégorie est déjà utilisé.' });
+            conflict('Ce nom de catégorie est déjà utilisé.');
         }
 
         const newCategory = await Category.create({
@@ -43,8 +43,8 @@ const categoryController = {
 
     // Update an existing category
     async updateCategory(req, res) {
-        const categoryId = parseInt(req.params.id)
-        const category = await Category.findByPk(categoryId)
+        const categoryId = parseInt(req.params.id);
+        const category = await Category.findByPk(categoryId);
 
         if (!category) {
             notFound("Catégorie non trouvée.");
@@ -71,9 +71,7 @@ const categoryController = {
         });
 
         if (product) {
-            return res.status(409).json({
-                message: "Impossible de supprimer cette catégorie car elle est utilisée par un ou plusieurs produits."
-            });
+                conflict("Impossible de supprimer cette catégorie car elle est utilisée par un ou plusieurs produits.");
         }
 
         await category.destroy();
