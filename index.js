@@ -12,6 +12,14 @@ app.use(express.json());
 
 app.use(router);
 
+app.use((err, req, res, next) => {
+    console.error(err);
+
+    res.status(err.statusCode || 500).json({
+        error: err.message || 'Erreur interne du serveur.'
+    });
+});
+
 app.listen(3000, () => {
     console.log(`🚀 Listening on http://localhost:3000`);
 });

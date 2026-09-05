@@ -13,7 +13,13 @@ const categoryController = {
     // Get one category
     async showOneCategory(req, res) {
         const categoryId = parseInt(req.params.id);
-        const category = await Category.findByPk(categoryId);
+        const category = await Category.findByPk(categoryId, {
+        include: [
+            {
+                association: 'products'
+            }
+        ]
+        });
 
         if (!category) {
             notFound("Catégorie non trouvée.");

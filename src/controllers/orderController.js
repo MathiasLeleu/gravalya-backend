@@ -75,7 +75,8 @@ const orderController = {
             relayPoint,
         } = req.body;
 
-        const userId = req.user.id;
+        //const userId = req.user.id;
+        const userId = 1; // TODO: remplacer par l'ID de l'utilisateur authentifié
 
         if (!Array.isArray(items) || items.length === 0) {
             badRequest('La commande doit contenir au moins un produit.');
