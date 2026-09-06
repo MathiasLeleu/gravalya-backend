@@ -9,6 +9,11 @@ import { shippingRateController } from './controllers/shippingRateController.js'
 import { validate } from './middlewares/validation.js'
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
+//import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
+//import { createProductSchema, updateProductSchema } from './schemas/productSchema.js'
+//import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
+import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
+//import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
 
 const router = Router();
 
@@ -46,8 +51,8 @@ router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
 // SHIPPING METHOD
 router.get('/shipping-methods', shippingMethodController.showAllShippingMethods);
 router.get('/shipping-methods/:id', shippingMethodController.showOneShippingMethod);
-router.post('/shipping-methods', shippingMethodController.createShippingMethod); // ADMIN
-router.patch('/shipping-methods/:id', shippingMethodController.updateShippingMethod); // ADMIN
+router.post('/shipping-methods', validate(createShippingMethodSchema), shippingMethodController.createShippingMethod); // ADMIN
+router.patch('/shipping-methods/:id', validate(updateShippingMethodSchema), shippingMethodController.updateShippingMethod); // ADMIN
 
 
 // SHIPPING RATE
