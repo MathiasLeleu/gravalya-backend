@@ -1,6 +1,6 @@
 import { ShippingRate } from "../models/Shipping_Rate.js";
 import { ShippingMethod } from "../models/Shipping_Method.js";
-import { notFound } from "../utils/error.js";
+import { notFound, badRequest } from "../utils/error.js";
 
 const shippingRateController = {
 
@@ -49,16 +49,43 @@ const shippingRateController = {
 
     // Update an existing shipping rate
     async updateShippingRate(req, res) {
-        const shippingRateId = parseInt(req.params.id);
-        const shippingRate = await ShippingRate.findByPk(shippingRateId);
+    const shippingRateId = parseInt(req.params.id);
+    const shippingRate = await ShippingRate.findByPk(shippingRateId);
 
-        if (!shippingRate) {
-            notFound("Tarif de livraison non trouvé.");
+    if (!shippingRate) {
+        notFound("Tarif de livraison non trouvé.");
+    }
+
+    const {
+        shippingMethodId,
+        minWeight,
+        maxWeight,
+        cost
+    } = req.body;
+
+    // Utilise la nouvelle valeur si elle est fournie,
+    // sinon conserve la valeur actuelle.
+    const newMinWeight = minWeight ?? shippingRate.minWeight;
+    const newMaxWeight = maxWeight ?? shippingRate.maxWeight;
+
+    if (Number(newMaxWeight) < Number(newMinWeight)) {
+        badRequest(
+            "Le poids maximum doit être supérieur ou égal au poids minimum."
+        );
+    }
+
+    if (shippingMethodId !== undefined) {
+        const shippingMethod = await ShippingMethod.findByPk(shippingMethodId);
+
+        if (!shippingMethod) {
+            notFound("Mode de livraison non trouvé.");
         }
+    }
 
-        await shippingRate.update(req.body);
+    await shippingRate.update(req.body);
 
-        res.status(200).json(shippingRate);
+    res.status(200).json(shippingRate);
+
     }
 
 }

@@ -13,7 +13,7 @@ import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 //import { createProductSchema, updateProductSchema } from './schemas/productSchema.js'
 //import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
-//import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
+import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
 
 const router = Router();
 
@@ -58,8 +58,8 @@ router.patch('/shipping-methods/:id', validate(updateShippingMethodSchema), ship
 // SHIPPING RATE
 router.get('/shipping-rates', shippingRateController.showAllShippingRates);
 router.get('/shipping-rates/:id', shippingRateController.showOneShippingRate);
-router.post('/shipping-rates', shippingRateController.createShippingRate); // ADMIN
-router.patch('/shipping-rates/:id', shippingRateController.updateShippingRate); // ADMIN
+router.post('/shipping-rates', validate(createShippingRateSchema), shippingRateController.createShippingRate); // ADMIN
+router.patch('/shipping-rates/:id', validate(updateShippingRateSchema), shippingRateController.updateShippingRate); // ADMIN
 
 
 export { router }
