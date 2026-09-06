@@ -39,7 +39,7 @@ User.init(
                     }
                 },
                 beforeUpdate: async (user) => {
-                    if (user.password) {
+                    if (user.changed("password")) {
                         user.password = await argon2.hash(user.password);
                     }
                 }

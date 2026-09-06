@@ -72,7 +72,7 @@ const userController = {
         res.status(201).json(newUserWithoutPassword);
     },
 
-    // Update an existing user
+    // Update a user
     async updateUser(req, res) {
         const userId = parseInt(req.params.id);
         const user = await User.findByPk(userId);
@@ -94,17 +94,20 @@ const userController = {
             email,
             password,
             newPassword,
-            confirmPassword
+            confirmNewPassword
         } = req.body;
 
+        // Modification du prénom
         if (firstName) {
             user.firstName = firstName;
         }
 
+        // Modification du nom
         if (lastName) {
             user.lastName = lastName;
         }
 
+        // Modification de l'email
         if (email) {
             const existingEmail = await User.findOne({
                 where: { email }
@@ -117,11 +120,19 @@ const userController = {
             user.email = email;
         }
 
-        if (password) {
-            const hashedPassword = user.password;
+        // Modification du mot de passe
+        if (password || newPassword || confirmNewPassword) {
 
+            // Les trois champs sont obligatoires
+            if (!password || !newPassword || !confirmNewPassword) {
+                badRequest(
+                    'Pour modifier le mot de passe, le mot de passe actuel, le nouveau mot de passe et sa confirmation sont requis.'
+                );
+            }
+
+            // Vérification de l'ancien mot de passe
             const isMatching = await argon2.verify(
-                hashedPassword,
+                user.password,
                 password
             );
 
@@ -129,10 +140,28 @@ const userController = {
                 badRequest('Le mot de passe actuel est incorrect.');
             }
 
-            if (newPassword !== confirmPassword) {
-                badRequest('Le mot de passe et sa confirmation ne correspondent pas.');
+            // Vérification que le nouveau mot de passe
+            // est différent de l'ancien
+            const isSamePassword = await argon2.verify(
+                user.password,
+                newPassword
+            );
+
+            if (isSamePassword) {
+                badRequest(
+                    'Le nouveau mot de passe doit être différent de l\'ancien.'
+                );
             }
 
+            // Vérification de la confirmation
+            if (newPassword !== confirmNewPassword) {
+                badRequest(
+                    'Le nouveau mot de passe et sa confirmation ne correspondent pas.'
+                );
+            }
+
+            // Le hook beforeUpdate de User.js
+            // se chargera de hasher le nouveau mot de passe
             user.password = newPassword;
         }
 
@@ -147,6 +176,8 @@ const userController = {
 
         res.status(200).json(updatedUserWithoutPassword);
     },
+
+
 
     // Delete a user
     async deleteUser(req, res) {

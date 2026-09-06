@@ -6,14 +6,18 @@ import { categoryController } from './controllers/categoryController.js'
 import { shippingMethodController } from './controllers/shippingMethodController.js'
 import { shippingRateController } from './controllers/shippingRateController.js'
 
+import { validate } from './middlewares/validation.js'
+
+import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
+
 const router = Router();
 
 // USER
 router.get('/users', userController.showAllUsers); //
 router.get('/users/:id', userController.showOneUser); // ADMIN + USER OWNER
-router.post('/users', userController.createUser);
+router.post('/users', validate(createUserSchema), userController.createUser); // ADMIN + NEW USER
 // TODO AUTH: Réactiver la vérification de req.user lorsque JWT sera implémenté.
-router.patch('/users/:id', userController.updateUser); // ADMIN + USER OWNER
+router.patch('/users/:id', validate(updateUserSchema), userController.updateUser); // ADMIN + USER OWNER
 router.delete('/users/:id', userController.deleteUser); // ADMIN + USER OWNER
 
 // ORDER
