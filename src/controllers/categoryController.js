@@ -56,6 +56,18 @@ const categoryController = {
             notFound("Catégorie non trouvée.");
         }
 
+        const { name } = req.body;
+
+        if (name) {
+            const existingName = await Category.findOne({
+                where: { name }
+            });
+
+            if (existingName && existingName.id !== categoryId) {
+                conflict('Ce nom de catégorie est déjà utilisé.');
+            }
+        }
+
         await category.update(req.body);
 
         res.status(200).json(category);

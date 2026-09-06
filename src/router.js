@@ -11,7 +11,7 @@ import { validate } from './middlewares/validation.js'
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 //import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
 //import { createProductSchema, updateProductSchema } from './schemas/productSchema.js'
-//import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
+import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
 import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
 
@@ -43,8 +43,8 @@ router.patch('/products/:id', productController.updateProduct); // ADMIN
 // CATEGORY
 router.get('/categories', categoryController.showAllCategories);
 router.get('/categories/:id', categoryController.showOneCategory);
-router.post('/categories', categoryController.createCategory); // ADMIN
-router.patch('/categories/:id', categoryController.updateCategory); // ADMIN
+router.post('/categories', validate(createCategorySchema), categoryController.createCategory); // ADMIN
+router.patch('/categories/:id', validate(updateCategorySchema), categoryController.updateCategory); // ADMIN
 router.delete('/categories/:id', categoryController.deleteCategory); // ADMIN
 
 
