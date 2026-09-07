@@ -8,6 +8,7 @@ import {
     ShippingRate,
     OrderRelayPoint,
     OrderLine,
+    Picture
 } from "../models/associations.js";
 
 async function runSeed() {
@@ -748,6 +749,55 @@ async function runSeed() {
             },
             relayPoint: relayPoints[0],
         });
+
+        // =========================================================
+        // IMAGES
+        // =========================================================
+
+        await Picture.bulkCreate([
+            {
+                url: "/uploads/products/decoration/maman/image1.jpg",
+                alt: "Décoration Maman",
+                isMain: true,
+                productId: products[0].id,
+            },
+            {
+                url: "/uploads/products/decoration/maman/image2.jpg",
+                alt: "Décoration Maman",
+                isMain: false,
+                productId: products[0].id,
+            },
+            {
+                url: "/uploads/products/portecle/papillon/image1.jpg",
+                alt: "Porte-clé Papillon",
+                isMain: true,
+                productId: products[1].id,
+            },
+            {
+                url: "/uploads/products/portecle/papillon/image2.jpg",
+                alt: "Porte-clé Papillon",
+                isMain: false,
+                productId: products[1].id,
+            },
+            {
+                url: "/uploads/products/tableaubois/paysagejaponais/image1.jpg",
+                alt: "Tableau en bois Paysage Japonais",
+                isMain: true,
+                productId: products[2].id,
+            },
+            {
+                url: "/uploads/products/tableaubois/paysagejaponais/image2.jpg",
+                alt: "Tableau en bois Paysage Japonais",
+                isMain: false,
+                productId: products[2].id,
+            },
+            {
+                url: "/uploads/products/tableaubois/paysagejaponais/image3.jpg",
+                alt: "Tableau en bois Paysage Japonais",
+                isMain: false,
+                productId: products[2].id,
+            }
+        ]);
 
         console.log("✅ Seed terminé avec succès !");
     } catch (error) {

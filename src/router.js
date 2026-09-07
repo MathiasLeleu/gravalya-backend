@@ -5,6 +5,7 @@ import { productController } from './controllers/productController.js'
 import { categoryController } from './controllers/categoryController.js'
 import { shippingMethodController } from './controllers/shippingMethodController.js'
 import { shippingRateController } from './controllers/shippingRateController.js'
+import { pictureController } from './controllers/pictureController.js'
 
 import { validate } from './middlewares/validation.js'
 
@@ -14,6 +15,7 @@ import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
 import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
+import { createPictureSchema } from './schemas/pictureSchema.js'
 
 const router = Router();
 
@@ -61,5 +63,10 @@ router.get('/shipping-rates/:id', shippingRateController.showOneShippingRate);
 router.post('/shipping-rates', validate(createShippingRateSchema), shippingRateController.createShippingRate); // ADMIN
 router.patch('/shipping-rates/:id', validate(updateShippingRateSchema), shippingRateController.updateShippingRate); // ADMIN
 
+// PRODUCT'S PICTURES
+router.get('/products/:id/pictures', pictureController.showProductPictures);
+router.get('/pictures/main', pictureController.showMainPictures);
+router.post('/products/:id/pictures', validate(createPictureSchema), pictureController.createPicture); // ADMIN
+router.delete('/products/:id/pictures/:pictureId', pictureController.deletePicture); // ADMIN
 
 export { router }

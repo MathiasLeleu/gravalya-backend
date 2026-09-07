@@ -11,6 +11,11 @@ const productController = {
             },
             include: [
                 { association: 'category' },
+                { 
+                    association: 'pictures', 
+                    where: { isMain: true },
+                }
+            
             ]
         });
         res.status(200).json(products);
@@ -22,6 +27,7 @@ const productController = {
         const product = await Product.findByPk(productId, {
             include: [
                 { association: 'category' },
+                { association: 'pictures' }
             ]
         });
 

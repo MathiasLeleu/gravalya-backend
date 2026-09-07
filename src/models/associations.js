@@ -7,6 +7,7 @@ import { ShippingMethod } from './Shipping_Method.js';
 import { ShippingRate } from './Shipping_Rate.js';
 import { OrderRelayPoint } from './Order_Relay_Point.js';
 import { OrderLine } from './Order_Line.js';
+import { Picture } from './Picture.js';
 
 // One-To-Many relations
 
@@ -96,6 +97,15 @@ ShippingRate.belongsTo(ShippingMethod, {
     foreignKey: 'shippingMethodId',
 });
 
+Product.hasMany(Picture, {
+    as: 'pictures',
+    foreignKey: 'productId',
+});
+
+Picture.belongsTo(Product, {
+    as: 'product',
+    foreignKey: 'productId',
+});
 
 // Many-To-Many relations
 
@@ -113,4 +123,4 @@ Product.belongsToMany(Order, {
     otherKey: 'orderId',
 });
 
-export { User, Order, Product, Category, ShippingMethod, ShippingRate, OrderRelayPoint, OrderLine, sequelize };
+export { User, Order, Product, Category, ShippingMethod, ShippingRate, OrderRelayPoint, OrderLine, Picture, sequelize };
