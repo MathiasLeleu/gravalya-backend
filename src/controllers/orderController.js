@@ -205,7 +205,7 @@ const orderController = {
                 userId,
                 shippingFirstName,
                 shippingLastName,
-                shippingCountry: shippingCountry || "FRANCE",
+                shippingCountry: shippingCountry || "France",
                 shippingAddress,
                 shippingAddress2: shippingAddress2 || null,
                 shippingPostalCode,

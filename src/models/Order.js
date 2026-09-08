@@ -59,7 +59,7 @@ Order.init(
         shippingCountry: {
             type: DataTypes.STRING(100),
             allowNull: false,
-            defaultValue: "FRANCE",
+            defaultValue: "France",
         },
         shippingAddress: {
             type: DataTypes.STRING(255),
