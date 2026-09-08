@@ -263,6 +263,16 @@ const orderController = {
             notFound("Commande non trouvée.");
         }
 
+        // TODO: Réactiver lorsque l'authentification sera mise en place.
+        // Seul le propriétaire de la commande ou un admin pourra la modifier.
+        //
+        // if (req.user.id !== order.userId && req.user.role !== "admin") {
+        //     return forbidden(
+        //         "Vous n'êtes pas autorisé à modifier cette commande."
+        //     );
+        // }
+
+        // req.body est déjà validé par le middleware Joi (updateOrderSchema)
         const {
             statut,
             shippingFirstName,
@@ -275,45 +285,55 @@ const orderController = {
             shippingPhone,
         } = req.body;
 
-        if (statut) {
-            if (!STATUTS_VALIDES.includes(statut)) {
-                badRequest('Statut invalide.');
-            }
+        // On mémorise le statut ACTUEL avant toute modification,
+        // pour ne pas vérifier l'état de livraison contre un statut qu'on vient nous-même de changer
+        const statutActuel = order.statut;
+
+        // --- Modification du statut : réservée à un admin ---
+        if (statut !== undefined) {
+            // TODO: Réactiver lorsque l'authentification sera mise en place.
+            //if (req.user.role !== "admin") {
+                //return forbidden(
+                    //"Seul un administrateur peut modifier le statut de la commande."
+                //);
+            //}
 
             order.statut = statut;
         }
 
-        // On n'autorise la modification des infos de livraison que si la commande n'est pas déjà expédiée
+        // --- Modification des infos de livraison : interdite si déjà expédiée/livrée ---
         const infosLivraisonModifiees =
-            shippingFirstName ||
-            shippingLastName ||
-            shippingAddress ||
-            shippingPostalCode ||
-            shippingCity ||
-            shippingPhone;
+            shippingFirstName !== undefined ||
+            shippingLastName !== undefined ||
+            shippingCountry !== undefined ||
+            shippingAddress !== undefined ||
+            shippingAddress2 !== undefined ||
+            shippingPostalCode !== undefined ||
+            shippingCity !== undefined ||
+            shippingPhone !== undefined;
 
         if (
-            ["EXPEDIEE", "LIVREE"].includes(order.statut) &&
-            infosLivraisonModifiees
+            infosLivraisonModifiees &&
+            ["EXPEDIEE", "LIVREE"].includes(statutActuel)
         ) {
-            badRequest(
+            return badRequest(
                 "Impossible de modifier les infos de livraison d'une commande déjà expédiée."
             );
         }
 
-        if (shippingFirstName) {
+        if (shippingFirstName !== undefined) {
             order.shippingFirstName = shippingFirstName;
         }
 
-        if (shippingLastName) {
+        if (shippingLastName !== undefined) {
             order.shippingLastName = shippingLastName;
         }
 
-        if (shippingCountry) {
+        if (shippingCountry !== undefined) {
             order.shippingCountry = shippingCountry;
         }
 
-        if (shippingAddress) {
+        if (shippingAddress !== undefined) {
             order.shippingAddress = shippingAddress;
         }
 
@@ -321,22 +341,22 @@ const orderController = {
             order.shippingAddress2 = shippingAddress2;
         }
 
-        if (shippingPostalCode) {
+        if (shippingPostalCode !== undefined) {
             order.shippingPostalCode = shippingPostalCode;
         }
 
-        if (shippingCity) {
+        if (shippingCity !== undefined) {
             order.shippingCity = shippingCity;
         }
 
-        if (shippingPhone) {
+        if (shippingPhone !== undefined) {
             order.shippingPhone = shippingPhone;
         }
 
         await order.save();
 
         const updatedOrder = await Order.findByPk(order.id, {
-            include: ORDER_INCLUDES
+            include: ORDER_INCLUDES,
         });
 
         res.status(200).json(updatedOrder);

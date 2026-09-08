@@ -10,7 +10,7 @@ import { pictureController } from './controllers/pictureController.js'
 import { validate } from './middlewares/validation.js'
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
-//import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
+import { createOrderSchema, updateOrderStatusSchema } from './schemas/orderSchema.js'
 import { createProductSchema, updateProductSchema } from './schemas/productSchema.js'
 import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
@@ -30,7 +30,7 @@ router.delete('/users/:id', userController.deleteUser); // ADMIN + USER OWNER
 // ORDER
 router.get('/orders', orderController.showAllOrders); // ADMIN
 router.get('/orders/:id', orderController.showOneOrder); // ADMIN + ORDER OWNER
-router.post('/orders', orderController.createOrder); 
+router.post('/orders', validate(createOrderSchema), orderController.createOrder);
 router.patch('/orders/:id', orderController.updateOrder); // ADMIN
 router.delete('/orders/:id', orderController.deleteOrder); // ADMIN
 

@@ -17,6 +17,13 @@ class ValidationError extends AppError {
     }
 }
 
+/* // 403 - Accès interdit
+class ForbiddenError extends AppError {
+    constructor(message = 'Accès interdit') {
+        super(message, 403);
+    }
+} */
+
 // 404 - Ressource introuvable
 class NotFoundError extends AppError {
     constructor(message = 'Ressource non trouvée') {
@@ -40,6 +47,10 @@ function notFound(message) {
     throw new NotFoundError(message);
 }
 
+/* function forbidden(message) {
+    throw new ForbiddenError(message);
+}
+*/
 function conflict(message) {
     throw new ConflictError(message);
 }
@@ -51,5 +62,6 @@ export {
     ConflictError,
     badRequest,
     notFound,
+    /* forbidden, */
     conflict
 };
