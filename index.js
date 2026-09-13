@@ -2,6 +2,7 @@ import "dotenv/config"
 
 import express from "express"
 import cors from "cors"
+import { xss } from "express-xss-sanitizer"
 
 import { router } from "./src/router.js"
 import './src/models/associations.js'
@@ -15,6 +16,8 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+app.use(xss());
 
 app.use("/uploads", express.static("uploads"));
 
