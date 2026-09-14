@@ -200,3 +200,5 @@ const updateProductSchema = joi.object({
 }).min(1).messages({
     'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
 });
+
+export { createProductSchema, updateProductSchema };
