@@ -30,7 +30,7 @@ const categoryController = {
 
     // Create a new category
     async createCategory(req, res) {
-        const { name, description } = req.body;
+        const { name, description, imageUrl } = req.body;
 
         const existingName = await Category.findOne({
             where: { name }
@@ -41,7 +41,7 @@ const categoryController = {
         }
 
         const newCategory = await Category.create({
-            name, description
+            name, description, imageUrl
         });
 
         res.status(201).json(newCategory)
@@ -56,7 +56,7 @@ const categoryController = {
             notFound("Catégorie non trouvée.");
         }
 
-        const { name } = req.body;
+        const { name, description, imageUrl } = req.body;
 
         if (name) {
             const existingName = await Category.findOne({
@@ -68,7 +68,11 @@ const categoryController = {
             }
         }
 
-        await category.update(req.body);
+        await category.update({
+            name: name || category.name,
+            description: description || category.description,
+            imageUrl: imageUrl || category.imageUrl
+        });
 
         res.status(200).json(category);
     },

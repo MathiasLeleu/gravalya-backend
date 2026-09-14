@@ -23,14 +23,17 @@ async function runSeed() {
             {
                 name: "Informatique",
                 description: "Ordinateurs, composants et accessoires informatiques.",
+                imageUrl: "/uploads/categories/informatique/informatique.jpg",
             },
             {
                 name: "Gaming",
                 description: "Produits et accessoires dédiés au jeu vidéo.",
+                imageUrl: "/uploads/categories/gaming/gaming.jpg",
             },
             {
                 name: "Audio",
                 description: "Casques, enceintes et accessoires audio.",
+                imageUrl: "/uploads/categories/audio/audio.jpg",
             },
             {
                 name: "Maison",

@@ -9,6 +9,10 @@ const createCategorySchema = joi.object({
 
     description: joi.string().required().messages({
         'any.required': 'La description de la catégorie est requise'
+    }),
+
+    imageUrl: joi.string().required().messages({
+        'any.required': 'L\'image de la catégorie est requise'
     })
 });
 
@@ -20,6 +24,10 @@ const updateCategorySchema = joi.object({
 
     description: joi.string().messages({
     'string.base': 'La description de la catégorie doit être une chaîne de caractères'
+    }),
+
+    imageUrl: joi.string().messages({
+        'string.base': 'L\'image de la catégorie doit être une chaîne de caractères'
     })
 }).min(1).messages({
 'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
