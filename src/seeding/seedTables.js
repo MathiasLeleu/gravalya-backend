@@ -38,6 +38,7 @@ async function runSeed() {
             {
                 name: "Maison",
                 description: "Produits et accessoires pour la maison.",
+                imageUrl: "/uploads/categories/maison/maison.jpg",
             },
         ]);
 
@@ -245,9 +246,14 @@ async function runSeed() {
 
         const shippingMethods = await ShippingMethod.bulkCreate([
             {
-                name: "Lettre Suivie",
-                carrier: "La Poste",
+                name: "Chronopost",
+                carrier: "Chronopost",
                 deliveryType: "Domicile",
+            },
+            {
+                name: "Chronopost",
+                carrier: "Chronopost",
+                deliveryType: "Point relais",
             },
             {
                 name: "Colissimo",
@@ -286,8 +292,11 @@ async function runSeed() {
         const shippingRatesData = [];
 
         const prices = [
-            // Lettre Suivie
-            [2.50, 4.00, 5.50, 8.00, 12.00],
+            // Chronopost domicile
+            [3.50, 3.50, 3.50, 3.50, 3.50],
+
+            // Chronopost point relais
+            [6.50, 6.50, 6.50, 6.50, 6.50],
 
             // Colissimo domicile
             [4.99, 6.99, 8.99, 11.99, 15.99],
@@ -422,13 +431,13 @@ async function runSeed() {
             },
         ];
 
-        // =========================================================
+       // =========================================================
         // COMMANDES
         // =========================================================
 
         // Commande 1
         // 1 ligne
-        // Lettre Suivie
+        // Chronopost domicile
         await createOrder({
             user: users[1],
             orderNumber: "CMD-TEST-001",
@@ -462,10 +471,10 @@ async function runSeed() {
             user: users[1],
             orderNumber: "CMD-TEST-002",
             statut: "CONFIRMEE",
-            shippingMethod: shippingMethods[1],
+            shippingMethod: shippingMethods[2],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[1].id &&
+                    rate.shippingMethodId === shippingMethods[2].id &&
                     rate.minWeight === "1.000"
             ),
             lines: [
@@ -500,10 +509,10 @@ async function runSeed() {
             user: users[2],
             orderNumber: "CMD-TEST-003",
             statut: "EXPEDIEE",
-            shippingMethod: shippingMethods[2],
+            shippingMethod: shippingMethods[3],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[2].id &&
+                    rate.shippingMethodId === shippingMethods[3].id &&
                     rate.minWeight === "1.000"
             ),
             lines: [
@@ -534,10 +543,10 @@ async function runSeed() {
             user: users[2],
             orderNumber: "CMD-TEST-004",
             statut: "LIVREE",
-            shippingMethod: shippingMethods[3],
+            shippingMethod: shippingMethods[4],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[3].id &&
+                    rate.shippingMethodId === shippingMethods[4].id &&
                     rate.minWeight === "0.500"
             ),
             lines: [
@@ -563,10 +572,10 @@ async function runSeed() {
             user: users[3],
             orderNumber: "CMD-TEST-005",
             statut: "ANNULEE",
-            shippingMethod: shippingMethods[4],
+            shippingMethod: shippingMethods[5],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[4].id &&
+                    rate.shippingMethodId === shippingMethods[5].id &&
                     rate.minWeight === "2.000"
             ),
             lines: [
@@ -596,7 +605,7 @@ async function runSeed() {
 
         // Commande 6
         // Plusieurs lignes
-        // Lettre suivie
+        // Chronopost domicile
         await createOrder({
             user: users[3],
             orderNumber: "CMD-TEST-006",
@@ -605,7 +614,7 @@ async function runSeed() {
             shippingRate: shippingRates.find(
                 (rate) =>
                     rate.shippingMethodId === shippingMethods[0].id &&
-                    rate.minWeight === "0.500"
+                    rate.minWeight === "0.000"
             ),
             lines: [
                 {
@@ -634,10 +643,10 @@ async function runSeed() {
             user: users[4],
             orderNumber: "CMD-TEST-007",
             statut: "EN_ATTENTE",
-            shippingMethod: shippingMethods[1],
+            shippingMethod: shippingMethods[2],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[1].id &&
+                    rate.shippingMethodId === shippingMethods[2].id &&
                     rate.minWeight === "0.000"
             ),
             lines: [
@@ -663,10 +672,10 @@ async function runSeed() {
             user: users[5],
             orderNumber: "CMD-TEST-008",
             statut: "LIVREE",
-            shippingMethod: shippingMethods[2],
+            shippingMethod: shippingMethods[3],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[2].id &&
+                    rate.shippingMethodId === shippingMethods[3].id &&
                     rate.minWeight === "1.000"
             ),
             lines: [
@@ -697,11 +706,11 @@ async function runSeed() {
             user: users[5],
             orderNumber: "CMD-TEST-009",
             statut: "EXPEDIEE",
-            shippingMethod: shippingMethods[3],
+            shippingMethod: shippingMethods[4],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[3].id &&
-                    rate.minWeight === "1.000"
+                    rate.shippingMethodId === shippingMethods[4].id &&
+                    rate.minWeight === "0.500"
             ),
             lines: [
                 {
@@ -726,11 +735,11 @@ async function runSeed() {
             user: users[1],
             orderNumber: "CMD-TEST-010",
             statut: "EN_ATTENTE",
-            shippingMethod: shippingMethods[4],
+            shippingMethod: shippingMethods[5],
             shippingRate: shippingRates.find(
                 (rate) =>
-                    rate.shippingMethodId === shippingMethods[4].id &&
-                    rate.minWeight === "1.000"
+                    rate.shippingMethodId === shippingMethods[5].id &&
+                    rate.minWeight === "0.000"
             ),
             lines: [
                 {
@@ -752,7 +761,6 @@ async function runSeed() {
             },
             relayPoint: relayPoints[0],
         });
-
         // =========================================================
         // IMAGES
         // =========================================================
