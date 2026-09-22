@@ -10,6 +10,7 @@ import { authController } from './controllers/authController.js'
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
+import { authMiddleware } from './middlewares/auth.js'
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
@@ -24,6 +25,11 @@ const router = Router();
 
 // AUTH
 router.post('/login', validate(loginSchema), cw(authController.login));
+router.get('/me', authMiddleware, (req, res) => {
+    res.json({
+        user: req.user
+    });
+});
 
 // USER
 router.get('/users', cw(userController.showAllUsers)); 
