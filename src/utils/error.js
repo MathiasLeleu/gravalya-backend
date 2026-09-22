@@ -17,6 +17,13 @@ class ValidationError extends AppError {
     }
 }
 
+// 401 - Authentification requise
+class UnauthorizedError extends AppError {
+    constructor(message = 'Authentification requise') {
+        super(message, 401);
+    }
+}
+
 /* // 403 - Accès interdit
 class ForbiddenError extends AppError {
     constructor(message = 'Accès interdit') {
@@ -43,6 +50,10 @@ function badRequest(message, details = []) {
     throw new ValidationError(message, details);
 }
 
+function unauthorized(message) {
+    throw new UnauthorizedError(message);
+}
+
 function notFound(message) {
     throw new NotFoundError(message);
 }
@@ -58,9 +69,11 @@ function conflict(message) {
 export {
     AppError,
     ValidationError,
+    UnauthorizedError,
     NotFoundError,
     ConflictError,
     badRequest,
+    unauthorized,
     notFound,
     /* forbidden, */
     conflict

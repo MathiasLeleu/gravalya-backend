@@ -236,7 +236,9 @@ async function runSeed() {
                 password: "User123!",
                 role: "user",
             },
-        ]);
+        ], {
+            individualHooks: true
+        });
 
         // Sophie n'aura volontairement aucune commande.
 

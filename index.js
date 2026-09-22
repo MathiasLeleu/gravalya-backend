@@ -9,6 +9,10 @@ import './src/models/associations.js'
 
 import { errorHandler, notFoundHandler } from "./src/middlewares/controllerWrapper.js"
 
+if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET n\'est pas configuré.');
+}
+
 const app = express();
 
 app.use(cors({

@@ -6,6 +6,7 @@ import { categoryController } from './controllers/categoryController.js'
 import { shippingMethodController } from './controllers/shippingMethodController.js'
 import { shippingRateController } from './controllers/shippingRateController.js'
 import { pictureController } from './controllers/pictureController.js'
+import { authController } from './controllers/authController.js'
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
@@ -17,8 +18,12 @@ import { createCategorySchema, updateCategorySchema } from './schemas/categorySc
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
 import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
 import { createPictureSchema } from './schemas/pictureSchema.js'
+import { loginSchema } from './schemas/authSchema.js'
 
 const router = Router();
+
+// AUTH
+router.post('/login', validate(loginSchema), cw(authController.login));
 
 // USER
 router.get('/users', cw(userController.showAllUsers)); 
