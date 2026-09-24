@@ -11,6 +11,7 @@ import { authController } from './controllers/authController.js'
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
 import { authMiddleware } from './middlewares/auth.js'
+import { adminMiddleware } from './middlewares/admin.js'
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
@@ -32,7 +33,7 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 // USER
-router.get('/users', cw(userController.showAllUsers)); 
+router.get('/users', authMiddleware, adminMiddleware, cw(userController.showAllUsers)); // ADMIN
 router.get('/users/:id', authMiddleware, cw(userController.showOneUser)); // ADMIN + USER OWNER
 router.post('/users', validate(createUserSchema), cw(userController.createUser)); // ADMIN + NEW USER
 router.patch('/users/:id', authMiddleware, validate(updateUserSchema), cw(userController.updateUser)); // ADMIN + USER OWNER
