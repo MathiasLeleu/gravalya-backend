@@ -24,12 +24,12 @@ class UnauthorizedError extends AppError {
     }
 }
 
-/* // 403 - Accès interdit
+// 403 - Accès interdit
 class ForbiddenError extends AppError {
     constructor(message = 'Accès interdit') {
         super(message, 403);
     }
-} */
+}
 
 // 404 - Ressource introuvable
 class NotFoundError extends AppError {
@@ -58,10 +58,10 @@ function notFound(message) {
     throw new NotFoundError(message);
 }
 
-/* function forbidden(message) {
+function forbidden(message) {
     throw new ForbiddenError(message);
 }
-*/
+
 function conflict(message) {
     throw new ConflictError(message);
 }
@@ -75,6 +75,6 @@ export {
     badRequest,
     unauthorized,
     notFound,
-    /* forbidden, */
+    forbidden,
     conflict
 };

@@ -1,6 +1,6 @@
 import { User } from '../models/User.js';
 import argon2 from 'argon2';
-import { badRequest, conflict, notFound } from '../utils/error.js';
+import { badRequest, conflict, notFound, forbidden } from '../utils/error.js';
 
 const userController = {
 
@@ -77,12 +77,9 @@ const userController = {
         const userId = parseInt(req.params.id);
         const user = await User.findByPk(userId);
 
-        // TODO: Réactiver lorsque l'authentification sera mise en place.
-        // if (req.user?.id !== userId) {
-        //     return res.status(403).json({
-        //         message: 'Vous n\'êtes pas autorisé à modifier les données de cet utilisateur.'
-        //     });
-        // }
+        if (req.user.id !== userId && req.user.role !== 'admin') {
+            forbidden("Vous n'êtes pas autorisé à modifier les données de cet utilisateur.")
+        }
 
         if (!user) {
             notFound("Utilisateur non trouvé.");
@@ -183,12 +180,9 @@ const userController = {
     async deleteUser(req, res) {
         const userId = parseInt(req.params.id);
 
-        // TODO: Réactiver lorsque l'authentification sera mise en place.
-        // if (req.user?.id !== userId) {
-        //     return res.status(403).json({
-        //         message: 'Vous n\'êtes pas autorisé à supprimer cet utilisateur.'
-        //     });
-        // }
+         if (req.user.id !== userId && req.user.role !== 'admin') {
+            forbidden("Vous n'êtes pas autorisé à supprimer cet utilisateur.");
+        }
 
         const user = await User.findByPk(userId);
 

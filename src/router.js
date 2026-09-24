@@ -33,11 +33,10 @@ router.get('/me', authMiddleware, (req, res) => {
 
 // USER
 router.get('/users', cw(userController.showAllUsers)); 
-router.get('/users/:id', cw(userController.showOneUser)); // ADMIN + USER OWNER
+router.get('/users/:id', authMiddleware, cw(userController.showOneUser)); // ADMIN + USER OWNER
 router.post('/users', validate(createUserSchema), cw(userController.createUser)); // ADMIN + NEW USER
-// TODO AUTH: Réactiver la vérification de req.user lorsque JWT sera implémenté.
-router.patch('/users/:id', validate(updateUserSchema), cw(userController.updateUser)); // ADMIN + USER OWNER
-router.delete('/users/:id', cw(userController.deleteUser)); // ADMIN + USER OWNER
+router.patch('/users/:id', authMiddleware, validate(updateUserSchema), cw(userController.updateUser)); // ADMIN + USER OWNER
+router.delete('/users/:id', authMiddleware, cw(userController.deleteUser)); // ADMIN + USER OWNER
 
 // ORDER
 router.get('/orders', cw(orderController.showAllOrders)); // ADMIN
