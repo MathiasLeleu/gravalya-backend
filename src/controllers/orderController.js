@@ -6,7 +6,7 @@ import { Product } from '../models/Product.js';
 import { ShippingMethod } from '../models/Shipping_Method.js';
 import { ShippingRate } from '../models/Shipping_Rate.js';
 import { Op } from 'sequelize';
-import { badRequest, notFound, conflict } from '../utils/error.js';
+import { badRequest, notFound, conflict, forbidden } from '../utils/error.js';
 
 function generateOrderNumber() {
     const date = new Date();
@@ -56,6 +56,10 @@ const orderController = {
             notFound("Commande non trouvée.");
         }
 
+        if (req.user.id !== order.userId && req.user.role !== 'admin') {
+            forbidden("Vous n'êtes pas autorisé à consulter cette commande.");
+        }
+
         res.status(200).json(order);
     },
 
@@ -75,8 +79,7 @@ const orderController = {
             relayPoint,
         } = req.body;
 
-        //const userId = req.user.id;
-        const userId = 1; // TODO: remplacer par l'ID de l'utilisateur authentifié
+        const userId = req.user.id;
 
         if (!Array.isArray(items) || items.length === 0) {
             badRequest('La commande doit contenir au moins un produit.');
@@ -254,151 +257,140 @@ const orderController = {
         res.status(201).json(order);
     },
 
-    // Update an existing order (statut + infos de livraison avant expédition)
-    async updateOrder(req, res) {
-        const orderId = parseInt(req.params.id);
-        const order = await Order.findByPk(orderId);
+    // Update an existing order (statut + infos de livraison)
+        async updateOrder(req, res) {
+            const orderId = parseInt(req.params.id);
+            const order = await Order.findByPk(orderId);
 
-        if (!order) {
-            notFound("Commande non trouvée.");
-        }
-
-        // TODO: Réactiver lorsque l'authentification sera mise en place.
-        // Seul le propriétaire de la commande ou un admin pourra la modifier.
-        //
-        // if (req.user.id !== order.userId && req.user.role !== "admin") {
-        //     return forbidden(
-        //         "Vous n'êtes pas autorisé à modifier cette commande."
-        //     );
-        // }
-
-        // req.body est déjà validé par le middleware Joi (updateOrderSchema)
-        const {
-            statut,
-            shippingFirstName,
-            shippingLastName,
-            shippingCountry,
-            shippingAddress,
-            shippingAddress2,
-            shippingPostalCode,
-            shippingCity,
-            shippingPhone,
-        } = req.body;
-
-        // On mémorise le statut ACTUEL avant toute modification,
-        // pour ne pas vérifier l'état de livraison contre un statut qu'on vient nous-même de changer
-        const statutActuel = order.statut;
-
-        // --- Modification du statut : réservée à un admin ---
-        if (statut !== undefined) {
-            // TODO: Réactiver lorsque l'authentification sera mise en place.
-            //if (req.user.role !== "admin") {
-                //return forbidden(
-                    //"Seul un administrateur peut modifier le statut de la commande."
-                //);
-            //}
-
-            order.statut = statut;
-        }
-
-        // --- Modification des infos de livraison : interdite si déjà expédiée/livrée ---
-        const infosLivraisonModifiees =
-            shippingFirstName !== undefined ||
-            shippingLastName !== undefined ||
-            shippingCountry !== undefined ||
-            shippingAddress !== undefined ||
-            shippingAddress2 !== undefined ||
-            shippingPostalCode !== undefined ||
-            shippingCity !== undefined ||
-            shippingPhone !== undefined;
-
-        if (
-            infosLivraisonModifiees &&
-            ["EXPEDIEE", "LIVREE"].includes(statutActuel)
-        ) {
-            return badRequest(
-                "Impossible de modifier les infos de livraison d'une commande déjà expédiée."
-            );
-        }
-
-        if (shippingFirstName !== undefined) {
-            order.shippingFirstName = shippingFirstName;
-        }
-
-        if (shippingLastName !== undefined) {
-            order.shippingLastName = shippingLastName;
-        }
-
-        if (shippingCountry !== undefined) {
-            order.shippingCountry = shippingCountry;
-        }
-
-        if (shippingAddress !== undefined) {
-            order.shippingAddress = shippingAddress;
-        }
-
-        if (shippingAddress2 !== undefined) {
-            order.shippingAddress2 = shippingAddress2;
-        }
-
-        if (shippingPostalCode !== undefined) {
-            order.shippingPostalCode = shippingPostalCode;
-        }
-
-        if (shippingCity !== undefined) {
-            order.shippingCity = shippingCity;
-        }
-
-        if (shippingPhone !== undefined) {
-            order.shippingPhone = shippingPhone;
-        }
-
-        await order.save();
-
-        const updatedOrder = await Order.findByPk(order.id, {
-            include: ORDER_INCLUDES,
-        });
-
-        res.status(200).json(updatedOrder);
-    },
-
-    // Delete (annuler) an order
-    async deleteOrder(req, res) {
-        const orderId = parseInt(req.params.id);
-
-        const order = await Order.findByPk(orderId, {
-            include: [{ association: 'orderLines' }]
-        });
-
-        if (!order) {
-            notFound('Commande non trouvée.');
-        }
-
-        if (["EXPEDIEE", "LIVREE"].includes(order.statut)) {
-            badRequest(
-                "Impossible d'annuler une commande déjà expédiée ou livrée."
-            );
-        }
-
-        await sequelize.transaction(async (t) => {
-            // Restock des produits
-            for (const line of order.orderLines) {
-                await Product.increment('stockQuantity', {
-                    by: line.quantity,
-                    where: { id: line.productId },
-                    transaction: t,
-                });
+            if (!order) {
+                notFound("Commande non trouvée.");
             }
 
-            order.statut = "ANNULEE";
+            // Seul le propriétaire ou un admin peut modifier la commande
+            if (req.user.id !== order.userId && req.user.role !== "admin") {
+                forbidden(
+                    "Vous n'êtes pas autorisé à modifier cette commande."
+                );
+            }
 
-            await order.save({ transaction: t });
-        });
+            // Le propriétaire ne peut modifier que les commandes EN_ATTENTE
+            if (order.statut !== "EN_ATTENTE") {
+                badRequest(
+                    "Impossible de modifier une commande qui n'est plus en attente."
+                );
+            }
 
-        res.status(200).json({
-            message: 'Commande annulée avec succès.'
-        });
-    }
+            // req.body est déjà validé par le middleware Joi (updateOrderSchema)
+            const {
+                statut,
+                shippingFirstName,
+                shippingLastName,
+                shippingCountry,
+                shippingAddress,
+                shippingAddress2,
+                shippingPostalCode,
+                shippingCity,
+                shippingPhone,
+            } = req.body;
+
+            // Modification du statut : réservée à un admin
+            if (statut !== undefined) {
+                if (req.user.role !== "admin") {
+                    forbidden(
+                        "Seul un administrateur peut modifier le statut de la commande."
+                    );
+                }
+
+                order.statut = statut;
+            }
+
+            // Modification des informations de livraison
+            if (shippingFirstName !== undefined) {
+                order.shippingFirstName = shippingFirstName;
+            }
+
+            if (shippingLastName !== undefined) {
+                order.shippingLastName = shippingLastName;
+            }
+
+            if (shippingCountry !== undefined) {
+                order.shippingCountry = shippingCountry;
+            }
+
+            if (shippingAddress !== undefined) {
+                order.shippingAddress = shippingAddress;
+            }
+
+            if (shippingAddress2 !== undefined) {
+                order.shippingAddress2 = shippingAddress2;
+            }
+
+            if (shippingPostalCode !== undefined) {
+                order.shippingPostalCode = shippingPostalCode;
+            }
+
+            if (shippingCity !== undefined) {
+                order.shippingCity = shippingCity;
+            }
+
+            if (shippingPhone !== undefined) {
+                order.shippingPhone = shippingPhone;
+            }
+
+            await order.save();
+
+            const updatedOrder = await Order.findByPk(order.id, {
+                include: ORDER_INCLUDES,
+            });
+
+            res.status(200).json(updatedOrder);
+        },
+
+    // Delete (annuler) an order
+        async deleteOrder(req, res) {
+            const orderId = parseInt(req.params.id);
+
+            const order = await Order.findByPk(orderId, {
+                include: [{ association: 'orderLines' }]
+            });
+
+            if (!order) {
+                notFound('Commande non trouvée.');
+            }
+
+            // Seul le propriétaire ou un admin peut annuler la commande
+            if (req.user.id !== order.userId && req.user.role !== "admin") {
+                forbidden(
+                    "Vous n'êtes pas autorisé à annuler cette commande."
+                );
+            }
+
+            // Seule une commande EN_ATTENTE peut être annulée
+            if (order.statut !== "EN_ATTENTE") {
+                badRequest(
+                    "Impossible d'annuler une commande qui n'est plus en attente."
+                );
+            }
+
+            await sequelize.transaction(async (t) => {
+                // Restock des produits
+                for (const line of order.orderLines) {
+                    await Product.increment('stockQuantity', {
+                        by: line.quantity,
+                        where: { id: line.productId },
+                        transaction: t,
+                    });
+                }
+
+                order.statut = "ANNULEE";
+
+                await order.save({ transaction: t });
+            });
+
+            res.status(200).json({
+                message: 'Commande annulée avec succès.'
+            });
+        },
 
 };
 

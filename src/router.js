@@ -40,11 +40,11 @@ router.patch('/users/:id', authMiddleware, validate(updateUserSchema), cw(userCo
 router.delete('/users/:id', authMiddleware, cw(userController.deleteUser)); // ADMIN + USER OWNER
 
 // ORDER
-router.get('/orders', cw(orderController.showAllOrders)); // ADMIN
-router.get('/orders/:id', cw(orderController.showOneOrder)); // ADMIN + ORDER OWNER
-router.post('/orders', validate(createOrderSchema), cw(orderController.createOrder));
-router.patch('/orders/:id', validate(updateOrderSchema), cw(orderController.updateOrder)); // ADMIN + ORDER OWNER
-router.delete('/orders/:id', cw(orderController.deleteOrder)); // ADMIN
+router.get('/orders', authMiddleware, adminMiddleware, cw(orderController.showAllOrders)); // ADMIN
+router.get('/orders/:id', authMiddleware, cw(orderController.showOneOrder)); // ADMIN + ORDER OWNER
+router.post('/orders', authMiddleware, validate(createOrderSchema), cw(orderController.createOrder));
+router.patch('/orders/:id', authMiddleware, validate(updateOrderSchema), cw(orderController.updateOrder)); // ADMIN + ORDER OWNER
+router.delete('/orders/:id', authMiddleware, cw(orderController.deleteOrder)); // ADMIN + ORDER OWNER
 
 
 // PRODUCT
