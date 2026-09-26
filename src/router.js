@@ -19,7 +19,7 @@ import { createProductSchema, updateProductSchema } from './schemas/productSchem
 import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
 import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
-import { createPictureSchema } from './schemas/pictureSchema.js'
+import { createPictureSchema, updatePictureSchema } from './schemas/pictureSchema.js'
 import { loginSchema } from './schemas/authSchema.js'
 
 const router = Router();
@@ -50,35 +50,36 @@ router.delete('/orders/:id', authMiddleware, cw(orderController.deleteOrder)); /
 // PRODUCT
 router.get('/products', cw(productController.showAllProducts));
 router.get('/products/:id', cw(productController.showOneProduct));
-router.post('/products', validate(createProductSchema), cw(productController.createProduct)); // ADMIN
-router.patch('/products/:id', validate(updateProductSchema), cw(productController.updateProduct)); // ADMIN
+router.post('/products', authMiddleware, adminMiddleware, validate(createProductSchema), cw(productController.createProduct)); // ADMIN
+router.patch('/products/:id', authMiddleware, adminMiddleware, validate(updateProductSchema), cw(productController.updateProduct)); // ADMIN
 
 
 // CATEGORY
 router.get('/categories', cw(categoryController.showAllCategories));
 router.get('/categories/:id', cw(categoryController.showOneCategory));
-router.post('/categories', validate(createCategorySchema), cw(categoryController.createCategory)); // ADMIN
-router.patch('/categories/:id', validate(updateCategorySchema), cw(categoryController.updateCategory)); // ADMIN
-router.delete('/categories/:id', cw(categoryController.deleteCategory)); // ADMIN
+router.post('/categories', authMiddleware, adminMiddleware, validate(createCategorySchema), cw(categoryController.createCategory)); // ADMIN
+router.patch('/categories/:id', authMiddleware, adminMiddleware, validate(updateCategorySchema), cw(categoryController.updateCategory)); // ADMIN
+router.delete('/categories/:id', authMiddleware, adminMiddleware, cw(categoryController.deleteCategory)); // ADMIN
 
 
 // SHIPPING METHOD
 router.get('/shipping-methods', cw(shippingMethodController.showAllShippingMethods));
 router.get('/shipping-methods/:id', cw(shippingMethodController.showOneShippingMethod)) ;
-router.post('/shipping-methods', validate(createShippingMethodSchema), cw(shippingMethodController.createShippingMethod)); // ADMIN
-router.patch('/shipping-methods/:id', validate(updateShippingMethodSchema), cw(shippingMethodController.updateShippingMethod))  ; // ADMIN
+router.post('/shipping-methods', authMiddleware, adminMiddleware, validate(createShippingMethodSchema), cw(shippingMethodController.createShippingMethod)); // ADMIN
+router.patch('/shipping-methods/:id', authMiddleware, adminMiddleware, validate(updateShippingMethodSchema), cw(shippingMethodController.updateShippingMethod))  ; // ADMIN
 
 
 // SHIPPING RATE
 router.get('/shipping-rates', cw(shippingRateController.showAllShippingRates));
 router.get('/shipping-rates/:id', cw(shippingRateController.showOneShippingRate));
-router.post('/shipping-rates', validate(createShippingRateSchema), cw(shippingRateController.createShippingRate)); // ADMIN
-router.patch('/shipping-rates/:id', validate(updateShippingRateSchema), cw(shippingRateController.updateShippingRate)); // ADMIN
+router.post('/shipping-rates', authMiddleware, adminMiddleware, validate(createShippingRateSchema), cw(shippingRateController.createShippingRate)); // ADMIN
+router.patch('/shipping-rates/:id', authMiddleware, adminMiddleware, validate(updateShippingRateSchema), cw(shippingRateController.updateShippingRate)); // ADMIN
 
 // PRODUCT'S PICTURES
 router.get('/products/:id/pictures', cw(pictureController.showProductPictures));
 router.get('/pictures/main', cw(pictureController.showMainPictures));
-router.post('/products/:id/pictures', validate(createPictureSchema), cw(pictureController.createPicture)); // ADMIN
-router.delete('/products/:id/pictures/:pictureId', cw(pictureController.deletePicture)) ; // ADMIN
+router.post('/products/:id/pictures', authMiddleware, adminMiddleware, validate(createPictureSchema), cw(pictureController.createPicture)); // ADMIN
+router.patch('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, validate(updatePictureSchema), cw(pictureController.updatePicture)); // ADMIN
+router.delete('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, cw(pictureController.deletePicture)) ; // ADMIN
 
 export { router }

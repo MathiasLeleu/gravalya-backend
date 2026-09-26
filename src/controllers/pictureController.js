@@ -71,6 +71,45 @@ const pictureController = {
         res.status(201).json(newPicture);
     },
 
+    // Update a picture
+    async updatePicture(req, res) {
+        const productId = parseInt(req.params.id);
+        const pictureId = parseInt(req.params.pictureId);
+
+        const picture = await Picture.findOne({
+            where: {
+                id: pictureId,
+                productId
+            }
+        });
+
+        if (!picture) {
+            notFound("Image non trouvée.");
+        }
+
+        const { url, alt, isMain } = req.body;
+
+        if (isMain === true) {
+            await Picture.update(
+                { isMain: false },
+                {
+                    where: {
+                        productId,
+                        isMain: true
+                    }
+                }
+            );
+        }
+
+        await picture.update({
+            url: url ?? picture.url,
+            alt: alt ?? picture.alt,
+            isMain: isMain ?? picture.isMain
+        });
+
+        res.status(200).json(picture);
+    },
+
     // Delete a picture
     async deletePicture(req, res) {
         const productId = parseInt(req.params.id);
@@ -89,7 +128,9 @@ const pictureController = {
 
         await picture.destroy();
 
-        res.status(204).send();
+        res.status(200).json({
+            message: "Image supprimée avec succès."
+        });
     }
 
 };
