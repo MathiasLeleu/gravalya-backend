@@ -189,6 +189,14 @@ async function runSeed() {
                 categoryId: categories[2].id,
             },
         ]);
+        
+        console.log(`✅ Produits créés : ${products.length}`);
+
+        const allProducts = await Product.findAll({
+            attributes: ["id", "name", "active", "categoryId"]
+        });
+
+        console.log(allProducts);
 
         // =========================================================
         // USERS
@@ -247,14 +255,6 @@ async function runSeed() {
         ], {
             individualHooks: true
         });
-
-        console.log(`✅ Produits créés : ${products.length}`);
-
-        const allProducts = await Product.findAll({
-            attributes: ["id", "name", "active", "categoryId"]
-        });
-
-        console.log(allProducts);
 
         // Sophie n'aura volontairement aucune commande.
 

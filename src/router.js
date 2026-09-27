@@ -26,11 +26,7 @@ const router = Router();
 
 // AUTH
 router.post('/login', validate(loginSchema), cw(authController.login));
-router.get('/me', authMiddleware, (req, res) => {
-    res.json({
-        user: req.user
-    });
-});
+router.get('/me', authMiddleware, cw(userController.showMe));
 
 // USER
 router.get('/users', authMiddleware, adminMiddleware, cw(userController.showAllUsers)); // ADMIN

@@ -33,6 +33,21 @@ const userController = {
         res.status(200).json(user);
     },
 
+    // Get the authenticated user
+    async showMe(req, res) {
+        const user = await User.findByPk(req.user.id, {
+            attributes: { exclude: ['password'] }
+        });
+
+        if (!user) {
+            notFound("Utilisateur non trouvé.");
+        }
+
+        res.status(200).json({
+            user
+        });
+    },
+
     // Create a new user
     async createUser(req, res) {
         const { firstName, lastName, email, password, confirmPassword } = req.body;
