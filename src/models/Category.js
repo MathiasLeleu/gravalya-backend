@@ -10,11 +10,20 @@ Category.init(
             allowNull: false,
             unique: true,
         },
+        slug: {
+            type: DataTypes.STRING(100),
+            allowNull: false,
+            unique: true,
+        },
         description: {
             type: DataTypes.TEXT,
             allowNull: false,
         },
         imageUrl: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        bannerUrl: {
             type: DataTypes.STRING,
             allowNull: false,
         },

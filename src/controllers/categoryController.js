@@ -30,7 +30,7 @@ const categoryController = {
 
     // Create a new category
     async createCategory(req, res) {
-        const { name, description, imageUrl } = req.body;
+        const { name, slug, description, imageUrl, bannerUrl } = req.body;
 
         const existingName = await Category.findOne({
             where: { name }
@@ -40,8 +40,16 @@ const categoryController = {
             conflict('Ce nom de catégorie est déjà utilisé.');
         }
 
+        const existingSlug = await Category.findOne({
+            where: { slug }
+        });
+
+        if (existingSlug) {
+            conflict('Ce slug de catégorie est déjà utilisé.');
+        }
+
         const newCategory = await Category.create({
-            name, description, imageUrl
+            name, slug, description, imageUrl, bannerUrl
         });
 
         res.status(201).json(newCategory)
@@ -56,7 +64,7 @@ const categoryController = {
             notFound("Catégorie non trouvée.");
         }
 
-        const { name, description, imageUrl } = req.body;
+        const { name, slug, description, imageUrl, bannerUrl } = req.body;
 
         if (name) {
             const existingName = await Category.findOne({
@@ -68,10 +76,22 @@ const categoryController = {
             }
         }
 
+        if (slug) {
+            const existingSlug = await Category.findOne({
+                where: { slug }
+            });
+
+            if (existingSlug && existingSlug.id !== categoryId) {
+                conflict('Ce slug de catégorie est déjà utilisé.');
+            }
+        }
+
         await category.update({
             name: name || category.name,
+            slug: slug || category.slug,
             description: description || category.description,
-            imageUrl: imageUrl || category.imageUrl
+            imageUrl: imageUrl || category.imageUrl,
+            bannerUrl: bannerUrl || category.bannerUrl
         });
 
         res.status(200).json(category);

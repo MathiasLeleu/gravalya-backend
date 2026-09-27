@@ -22,23 +22,31 @@ async function runSeed() {
         const categories = await Category.bulkCreate([
             {
                 name: "Informatique",
+                slug: "informatique",
                 description: "Ordinateurs, composants et accessoires informatiques.",
                 imageUrl: "/uploads/categories/informatique/informatique.jpg",
+                bannerUrl: "/uploads/categories/informatique/banner.jpg",
             },
             {
                 name: "Gaming",
+                slug: "gaming",
                 description: "Produits et accessoires dédiés au jeu vidéo.",
                 imageUrl: "/uploads/categories/gaming/gaming.jpg",
+                bannerUrl: "/uploads/categories/gaming/banner.jpg",
             },
             {
                 name: "Audio",
+                slug: "audio",
                 description: "Casques, enceintes et accessoires audio.",
                 imageUrl: "/uploads/categories/audio/audio.jpg",
+                bannerUrl: "/uploads/categories/audio/banner.jpg",
             },
             {
                 name: "Maison",
+                slug: "maison",
                 description: "Produits et accessoires pour la maison.",
                 imageUrl: "/uploads/categories/maison/maison.jpg",
+                bannerUrl: "/uploads/categories/maison/banner.jpg",
             },
         ]);
 
