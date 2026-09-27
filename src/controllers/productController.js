@@ -1,4 +1,5 @@
 import { Product } from '../models/Product.js';
+import { Category } from '../models/Category.js';
 import { badRequest, conflict, notFound } from '../utils/error.js';
 
 const productController = {
@@ -18,6 +19,38 @@ const productController = {
             
             ]
         });
+        res.status(200).json(products);
+    },
+
+    // Get all products from a category
+    async showProductsByCategory(req, res) {
+        const { slug } = req.params;
+
+        const category = await Category.findOne({
+            where: { slug }
+        });
+
+        if (!category) {
+            notFound("Catégorie non trouvée.");
+        }
+
+        console.log("Slug reçu :", slug);
+        console.log("Catégorie trouvée :", category.id, category.name);
+
+        const products = await Product.findAll({
+            where: {
+                active: true,
+                categoryId: category.id
+            },
+            include: [
+                { association: 'category' },
+                {
+                    association: 'pictures',
+                    where: { isMain: true },
+                }
+            ]
+        });
+
         res.status(200).json(products);
     },
 
