@@ -293,6 +293,11 @@ async function runSeed() {
                 carrier: "Mondial Relay",
                 deliveryType: "Point relais",
             },
+            {
+                name: "Lettre Suivie",
+                carrier: "La Poste",
+                deliveryType: "Domicile",
+            },
         ]);
 
         // =========================================================
@@ -337,7 +342,7 @@ async function runSeed() {
             [5.000, 10.000],
         ];
 
-        for (let i = 0; i < shippingMethods.length; i++) {
+        for (let i = 0; i < prices.length; i++) {
             for (let j = 0; j < weightRanges.length; j++) {
                 shippingRatesData.push({
                     shippingMethodId: shippingMethods[i].id,
@@ -351,6 +356,21 @@ async function runSeed() {
         const shippingRates = await ShippingRate.bulkCreate(
             shippingRatesData
         );
+
+        await ShippingRate.bulkCreate([
+            {
+                shippingMethodId: shippingMethods[6].id,
+                minWeight: 0.000,
+                maxWeight: 0.020,
+                cost: 2.02,
+            },
+            {
+                shippingMethodId: shippingMethods[6].id,
+                minWeight: 0.021,
+                maxWeight: 0.050,
+                cost: 3.60,
+            },
+        ]);
 
         // =========================================================
         // HELPER POUR CREER UNE COMMANDE

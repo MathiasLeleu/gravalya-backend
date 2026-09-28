@@ -2,7 +2,7 @@ import joi from 'joi';
 
 const createShippingMethodSchema = joi.object({
     name: joi.string()
-        .valid("Lettre Suivie", "Colissimo", "Mondial Relay")
+        .valid("Lettre Suivie", "Colissimo", "Mondial Relay", "Lettre Suivie")
         .required()
         .messages({
             'any.only': 'Le nom du mode de livraison est invalide',
@@ -28,7 +28,7 @@ const createShippingMethodSchema = joi.object({
 
 const updateShippingMethodSchema = joi.object({
     name: joi.string()
-        .valid("Lettre Suivie", "Colissimo", "Mondial Relay")
+        .valid("Lettre Suivie", "Colissimo", "Mondial Relay", "Lettre Suivie")
         .messages({
             'any.only': 'Le nom du mode de livraison est invalide'
         }),

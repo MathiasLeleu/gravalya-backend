@@ -6,7 +6,7 @@ export class ShippingMethod extends Model {}
 ShippingMethod.init(
     {
         name: {
-            type: DataTypes.ENUM("Chronopost", "Colissimo", "Mondial Relay"),
+            type: DataTypes.ENUM("Chronopost", "Colissimo", "Mondial Relay", "Lettre Suivie"),
             allowNull: false,
         },
         carrier: {
