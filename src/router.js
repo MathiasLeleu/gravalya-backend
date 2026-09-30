@@ -7,6 +7,7 @@ import { shippingMethodController } from './controllers/shippingMethodController
 import { shippingRateController } from './controllers/shippingRateController.js'
 import { pictureController } from './controllers/pictureController.js'
 import { authController } from './controllers/authController.js'
+import { relayPointController } from "./controllers/relayPointController.js";
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
@@ -79,4 +80,6 @@ router.post('/products/:id/pictures', authMiddleware, adminMiddleware, validate(
 router.patch('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, validate(updatePictureSchema), cw(pictureController.updatePicture)); // ADMIN
 router.delete('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, cw(pictureController.deletePicture)) ; // ADMIN
 
+// RELAY POINTS 
+router.get("/relay-points",cw(relayPointController.showServicePoints));
 export { router }
