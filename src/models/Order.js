@@ -15,6 +15,10 @@ Order.init(
             allowNull: false,
             unique: true,
         },
+        customerEmail: {
+            type: DataTypes.STRING(255),
+            allowNull: false,
+        },
         amount: {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: false,
@@ -46,7 +50,7 @@ Order.init(
         },
         userId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
         },
         shippingFirstName: {
             type: DataTypes.STRING(50),

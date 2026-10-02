@@ -67,6 +67,7 @@ const orderController = {
     async createOrder(req, res) {
         const {
             items,
+            customerEmail,
             shippingMethodId,
             shippingFirstName,
             shippingLastName,
@@ -79,7 +80,7 @@ const orderController = {
             relayPoint,
         } = req.body;
 
-        const userId = req.user.id;
+        const userId = req.user?.id || null;
 
         if (!Array.isArray(items) || items.length === 0) {
             badRequest('La commande doit contenir au moins un produit.');
@@ -205,6 +206,7 @@ const orderController = {
                 shippingCost: parseFloat(shippingRate.cost),
                 shippingMethodId,
                 shippingRateId: shippingRate.id,
+                customerEmail,
                 userId,
                 shippingFirstName,
                 shippingLastName,

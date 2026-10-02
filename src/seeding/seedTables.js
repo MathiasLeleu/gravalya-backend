@@ -404,6 +404,7 @@ async function runSeed() {
                 shippingCost: shippingRate.cost,
                 shippingMethodId: shippingMethod.id,
                 shippingRateId: shippingRate.id,
+                customerEmail: user.email,
                 userId: user.id,
 
                 shippingFirstName: shipping.firstName,

@@ -39,7 +39,7 @@ router.delete('/users/:id', authMiddleware, cw(userController.deleteUser)); // A
 // ORDER
 router.get('/orders', authMiddleware, adminMiddleware, cw(orderController.showAllOrders)); // ADMIN
 router.get('/orders/:id', authMiddleware, cw(orderController.showOneOrder)); // ADMIN + ORDER OWNER
-router.post('/orders', authMiddleware, validate(createOrderSchema), cw(orderController.createOrder));
+router.post('/orders', validate(createOrderSchema), cw(orderController.createOrder));
 router.patch('/orders/:id', authMiddleware, validate(updateOrderSchema), cw(orderController.updateOrder)); // ADMIN + ORDER OWNER
 router.delete('/orders/:id', authMiddleware, cw(orderController.deleteOrder)); // ADMIN + ORDER OWNER
 

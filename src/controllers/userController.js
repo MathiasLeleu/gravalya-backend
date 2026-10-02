@@ -1,4 +1,5 @@
 import { User } from '../models/User.js';
+import { Order } from '../models/Order.js';
 import argon2 from 'argon2';
 import { badRequest, conflict, notFound, forbidden } from '../utils/error.js';
 
@@ -76,6 +77,18 @@ const userController = {
             email,
             password,
         });
+
+        await Order.update(
+            {
+                userId: newUser.id,
+            },
+            {
+                where: {
+                    userId: null,
+                    customerEmail: email,
+                },
+            }
+        );
 
         const newUserWithoutPassword = {
             firstName: newUser.firstName,

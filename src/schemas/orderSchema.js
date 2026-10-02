@@ -1,6 +1,14 @@
 import joi from 'joi';
 
 const createOrderSchema = joi.object({
+    customerEmail: joi.string()
+        .trim()
+        .email()
+        .required()
+        .messages({
+            'string.email': 'L\'adresse email de la commande est invalide',
+            'any.required': 'L\'adresse email est requise'
+        }),
     items: joi.array()
         .items(
             joi.object({
