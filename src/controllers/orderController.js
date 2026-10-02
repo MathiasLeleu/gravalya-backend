@@ -1,5 +1,6 @@
 import { sequelize } from '../models/connection.js';
 import { Order } from '../models/Order.js';
+import { User } from '../models/User.js';
 import { OrderLine } from '../models/Order_Line.js';
 import { OrderRelayPoint } from '../models/Order_Relay_Point.js';
 import { Product } from '../models/Product.js';
@@ -40,6 +41,31 @@ const orderController = {
     async showAllOrders(req, res) {
         const orders = await Order.findAll({
             include: ORDER_INCLUDES
+        });
+
+        res.status(200).json(orders);
+    },
+
+    async showMyOrders(req, res) {
+        const user = await User.findByPk(req.user.id);
+
+        if (!user) {
+            notFound("Utilisateur non trouvé.");
+        }
+
+        const orders = await Order.findAll({
+            where: {
+                [Op.or]: [
+                    {
+                        userId: req.user.id,
+                    },
+                    {
+                        customerEmail: user.email,
+                    },
+                ],
+            },
+            include: ORDER_INCLUDES,
+            order: [["created_at", "DESC"]],
         });
 
         res.status(200).json(orders);
