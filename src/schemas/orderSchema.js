@@ -293,12 +293,47 @@ const updateOrderSchema = joi.object({
         .pattern(/^(?:(?:\+33|0)[1-9])(?:[ .-]?[0-9]{2}){4}$/)
         .messages({
             'string.pattern.base': 'Le numéro de téléphone est invalide'
-        })
-})
-    .min(1)
-    .messages({
-        'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
-    });
+        }),
+        relayPoint: joi.object({
+            relayPointId: joi.number()
+                .integer()
+                .positive()
+                .required(),
+
+            relayPointName: joi.string()
+                .trim()
+                .min(2)
+                .max(100)
+                .required(),
+
+            relayPointAddress: joi.string()
+                .trim()
+                .min(2)
+                .max(255)
+                .required(),
+
+            relayPointPostalCode: joi.string()
+                .trim()
+                .pattern(/^[0-9]{5}$/)
+                .required(),
+
+            relayPointCity: joi.string()
+                .trim()
+                .min(2)
+                .max(100)
+                .pattern(/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/)
+                .required(),
+
+            relayPointCountry: joi.string()
+                .trim()
+                .valid('France')
+                .default('France')
+        }).optional()
+    })
+        .min(1)
+        .messages({
+            'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
+        });
 
 
 export { createOrderSchema, updateOrderSchema };

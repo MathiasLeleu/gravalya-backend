@@ -325,7 +325,43 @@ const orderController = {
                 shippingPostalCode,
                 shippingCity,
                 shippingPhone,
+                relayPoint,
             } = req.body;
+
+            const shippingMethod = await ShippingMethod.findByPk(
+                order.shippingMethodId
+            );
+
+            if (!shippingMethod) {
+                notFound("Méthode de livraison introuvable.");
+            }
+
+            const addressChanged =
+                (shippingAddress !== undefined &&
+                    shippingAddress !== order.shippingAddress) ||
+                (shippingPostalCode !== undefined &&
+                    shippingPostalCode !== order.shippingPostalCode) ||
+                (shippingCity !== undefined &&
+                    shippingCity !== order.shippingCity);
+
+            if (
+                shippingMethod.deliveryType === "Point relais" &&
+                addressChanged &&
+                !relayPoint
+            ) {
+                badRequest(
+                    "Un nouveau point relais est requis lorsque l'adresse de livraison est modifiée."
+                );
+            }
+
+            if (
+                relayPoint &&
+                shippingMethod.deliveryType !== "Point relais"
+            ) {
+                badRequest(
+                    "Cette commande n'est pas livrée en point relais."
+                );
+            }
 
             // Modification du statut : réservée à un admin
             if (statut !== undefined) {
@@ -372,6 +408,37 @@ const orderController = {
             }
 
             await order.save();
+
+            if (relayPoint) {
+                const orderRelayPoint = await OrderRelayPoint.findOne({
+                    where: {
+                        orderId: order.id,
+                    },
+                });
+
+                if (orderRelayPoint) {
+                    orderRelayPoint.relayPointId = relayPoint.relayPointId;
+                    orderRelayPoint.relayPointName = relayPoint.relayPointName;
+                    orderRelayPoint.relayPointAddress = relayPoint.relayPointAddress;
+                    orderRelayPoint.relayPointPostalCode = relayPoint.relayPointPostalCode;
+                    orderRelayPoint.relayPointCity = relayPoint.relayPointCity;
+                    orderRelayPoint.relayPointCountry =
+                        relayPoint.relayPointCountry || "France";
+
+                    await orderRelayPoint.save();
+                } else {
+                    await OrderRelayPoint.create({
+                        orderId: order.id,
+                        relayPointId: relayPoint.relayPointId,
+                        relayPointName: relayPoint.relayPointName,
+                        relayPointAddress: relayPoint.relayPointAddress,
+                        relayPointPostalCode: relayPoint.relayPointPostalCode,
+                        relayPointCity: relayPoint.relayPointCity,
+                        relayPointCountry:
+                            relayPoint.relayPointCountry || "France",
+                    });
+                }
+            }
 
             const updatedOrder = await Order.findByPk(order.id, {
                 include: ORDER_INCLUDES,
