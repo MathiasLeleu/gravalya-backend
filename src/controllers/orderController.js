@@ -294,8 +294,14 @@ const orderController = {
                 notFound("Commande non trouvée.");
             }
 
+            const user = await User.findByPk(req.user.id);
+
+            if (!user) {
+                notFound("Utilisateur non trouvé.");
+            }
+
             // Seul le propriétaire ou un admin peut modifier la commande
-            if (req.user.id !== order.userId && req.user.role !== "admin") {
+            if (order.userId !== req.user.id && req.user.role !== "admin" && order.customerEmail !== user.email) {
                 forbidden(
                     "Vous n'êtes pas autorisé à modifier cette commande."
                 );
