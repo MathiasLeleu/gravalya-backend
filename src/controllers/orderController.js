@@ -386,8 +386,18 @@ const orderController = {
                 notFound('Commande non trouvée.');
             }
 
+            const user = await User.findByPk(req.user.id);
+
+            if (!user) {
+                notFound("Utilisateur non trouvé.");
+            }
+
             // Seul le propriétaire ou un admin peut annuler la commande
-            if (req.user.id !== order.userId && req.user.role !== "admin") {
+            if (
+                req.user.role !== "admin" &&
+                order.userId !== req.user.id &&
+                order.customerEmail !== user.email
+            ) {
                 forbidden(
                     "Vous n'êtes pas autorisé à annuler cette commande."
                 );
