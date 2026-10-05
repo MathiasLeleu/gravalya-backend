@@ -307,13 +307,6 @@ const orderController = {
                 );
             }
 
-            // Le propriétaire ne peut modifier que les commandes EN_ATTENTE
-            if (order.statut !== "EN_ATTENTE") {
-                badRequest(
-                    "Impossible de modifier une commande qui n'est plus en attente."
-                );
-            }
-
             // req.body est déjà validé par le middleware Joi (updateOrderSchema)
             const {
                 statut,
@@ -327,6 +320,27 @@ const orderController = {
                 shippingPhone,
                 relayPoint,
             } = req.body;
+
+            const infosLivraisonModifiees =
+                shippingFirstName !== undefined ||
+                shippingLastName !== undefined ||
+                shippingCountry !== undefined ||
+                shippingAddress !== undefined ||
+                shippingAddress2 !== undefined ||
+                shippingPostalCode !== undefined ||
+                shippingCity !== undefined ||
+                shippingPhone !== undefined ||
+                relayPoint !== undefined;
+
+            if (
+                infosLivraisonModifiees &&
+                (order.statut !== "EN_ATTENTE"  ||
+                    (statut !== undefined && statut !== "EN_ATTENTE"))
+            ) {
+                badRequest(
+                    "Impossible de modifier les informations de livraison d'une commande qui n'est plus en attente."
+                );
+            }
 
             const shippingMethod = await ShippingMethod.findByPk(
                 order.shippingMethodId
