@@ -47,6 +47,7 @@ router.delete('/orders/:id', authMiddleware, cw(orderController.deleteOrder)); /
 
 // PRODUCT
 router.get('/products', cw(productController.showAllProducts));
+router.get('/admin/products', authMiddleware, adminMiddleware, cw(productController.showAllProductsAdmin)); // ADMIN
 router.get('/products/category/:slug', cw(productController.showProductsByCategory));
 router.get('/products/:id', cw(productController.showOneProduct));
 router.post('/products', authMiddleware, adminMiddleware, validate(createProductSchema), cw(productController.createProduct)); // ADMIN

@@ -22,6 +22,22 @@ const productController = {
         res.status(200).json(products);
     },
 
+    // Get all products for admin
+    async showAllProductsAdmin(req, res) {
+        const products = await Product.findAll({
+            include: [
+                { association: 'category' },
+                {
+                    association: 'pictures',
+                    where: { isMain: true },
+                    required: false,
+                }
+            ]
+        });
+
+        res.status(200).json(products);
+    },
+
     // Get all products from a category
     async showProductsByCategory(req, res) {
         const { slug } = req.params;
