@@ -15,42 +15,26 @@ const createCategorySchema = joi.object({
 
     description: joi.string().required().messages({
         'any.required': 'La description de la catégorie est requise'
-    }),
-
-    imageUrl: joi.string().required().messages({
-        'any.required': 'L\'image de la catégorie est requise'
-    }),
-
-    bannerUrl: joi.string().required().messages({
-        'any.required': 'La bannière de la catégorie est requise'
     })
 });
 
 const updateCategorySchema = joi.object({
     name: joi.string().min(2).max(100).messages({
         'string.min': 'Le nom de la catégorie doit contenir au moins {#limit} caractères',
-        'string.max': 'Le nom de la catégorie ne doit pas dépasser {#limit} caractères'
+        'string.max': 'Le nom de la catégorie ne doit pas dépasser {#limit} caractères',
+        'string.base': 'Le nom de la catégorie doit être une chaîne de caractères'
     }),
 
     slug: joi.string().min(2).max(100).messages({
         'string.min': 'Le slug de la catégorie doit contenir au moins {#limit} caractères',
-        'string.max': 'Le slug de la catégorie ne doit pas dépasser {#limit} caractères'
+        'string.max': 'Le slug de la catégorie ne doit pas dépasser {#limit} caractères',
+        'string.base': 'Le slug de la catégorie doit être une chaîne de caractères'
     }),
 
     description: joi.string().messages({
-    'string.base': 'La description de la catégorie doit être une chaîne de caractères'
-    }),
-
-    imageUrl: joi.string().messages({
-        'string.base': 'L\'image de la catégorie doit être une chaîne de caractères'
-    }),
-
-    bannerUrl: joi.string().messages({
-        'string.base': 'La bannière de la catégorie doit être une chaîne de caractères'
+        'string.base': 'La description de la catégorie doit être une chaîne de caractères'
     })
-}).min(1).messages({
-'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
-});
+}).unknown(false);
 
 export { createCategorySchema, updateCategorySchema };
 

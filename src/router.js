@@ -14,6 +14,7 @@ import { cw } from './middlewares/controllerWrapper.js'
 import { authMiddleware } from './middlewares/auth.js'
 import { adminMiddleware } from './middlewares/admin.js'
 import { uploadPicture } from './middlewares/uploadPicture.js';
+import { uploadCategoryImages } from './middlewares/uploadCategoryImages.js';
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
@@ -58,8 +59,16 @@ router.patch('/products/:id', authMiddleware, adminMiddleware, validate(updatePr
 // CATEGORY
 router.get('/categories', cw(categoryController.showAllCategories));
 router.get('/categories/:id', cw(categoryController.showOneCategory));
-router.post('/categories', authMiddleware, adminMiddleware, validate(createCategorySchema), cw(categoryController.createCategory)); // ADMIN
-router.patch('/categories/:id', authMiddleware, adminMiddleware, validate(updateCategorySchema), cw(categoryController.updateCategory)); // ADMIN
+router.post('/categories', authMiddleware, adminMiddleware,
+    uploadCategoryImages.fields([
+        { name: 'image', maxCount: 1 },
+        { name: 'banner', maxCount: 1 }
+    ]), validate(createCategorySchema), cw(categoryController.createCategory)); // ADMIN
+router.patch('/categories/:id', authMiddleware, adminMiddleware,
+    uploadCategoryImages.fields([
+        { name: 'image', maxCount: 1 },
+        { name: 'banner', maxCount: 1 }
+    ]), validate(updateCategorySchema), cw(categoryController.updateCategory)); // ADMIN
 router.delete('/categories/:id', authMiddleware, adminMiddleware, cw(categoryController.deleteCategory)); // ADMIN
 
 
