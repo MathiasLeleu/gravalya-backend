@@ -53,12 +53,6 @@ async function runSeed() {
                 maxWeight: 0.020,
                 cost: 2.02,
             },
-            {
-                shippingMethodId: shippingMethod.id,
-                minWeight: 0.021,
-                maxWeight: 0.050,
-                cost: 3.60,
-            },
         ]);
 
         console.log("✅ Seed terminé avec succès !");
