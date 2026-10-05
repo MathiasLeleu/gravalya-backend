@@ -2,6 +2,8 @@ import { Picture } from '../models/Picture.js';
 import { Product } from '../models/Product.js';
 import { badRequest, notFound } from '../utils/error.js';
 
+import fs from "fs";
+
 const pictureController = {
 
     // Get all main pictures
@@ -69,6 +71,72 @@ const pictureController = {
         });
 
         res.status(201).json(newPicture);
+    },
+
+    // Upload a picture to a product
+    async uploadPicture(req, res) {
+        const productId = parseInt(req.params.id);
+
+        const product = await Product.findByPk(productId);
+
+        if (!product) {
+            if (req.file?.path) {
+                fs.unlinkSync(req.file.path);
+            }
+
+            notFound("Produit non trouvé.");
+        }
+
+        if (!req.file) {
+            badRequest("Une image est requise.");
+        }
+
+        const { alt, isMain } = req.body;
+
+        if (!alt?.trim()) {
+            if (req.file?.path) {
+                fs.unlinkSync(req.file.path);
+            }
+
+            badRequest("Le texte alternatif est requis.");
+        }
+
+        const shouldBeMain =
+            isMain === true ||
+            isMain === "true";
+
+        if (shouldBeMain) {
+            await Picture.update(
+                { isMain: false },
+                {
+                    where: {
+                        productId,
+                        isMain: true,
+                    },
+                }
+            );
+        }
+
+        const pictureUrl =
+            `/uploads/products/${productId}/${req.file.filename}`;
+
+        try {
+            const newPicture = await Picture.create({
+                url: pictureUrl,
+                alt: alt.trim(),
+                isMain: shouldBeMain,
+                productId,
+            });
+
+            res.status(201).json(newPicture);
+
+        } catch (error) {
+            if (req.file?.path) {
+                fs.unlinkSync(req.file.path);
+            }
+
+            throw error;
+        }
     },
 
     // Update a picture

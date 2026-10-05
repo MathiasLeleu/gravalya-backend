@@ -48,7 +48,7 @@ function sanitizeInput(req, res, next) {
         }
 
         if (req.query) {
-            req.query = sanitizeValue(req.query);
+            sanitizeValue(req.query);
         }
 
         next();

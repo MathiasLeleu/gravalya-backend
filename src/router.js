@@ -13,6 +13,7 @@ import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
 import { authMiddleware } from './middlewares/auth.js'
 import { adminMiddleware } from './middlewares/admin.js'
+import { uploadPicture } from './middlewares/uploadPicture.js';
 
 import { createUserSchema, updateUserSchema } from './schemas/userSchema.js'
 import { createOrderSchema, updateOrderSchema } from './schemas/orderSchema.js'
@@ -79,6 +80,7 @@ router.patch('/shipping-rates/:id', authMiddleware, adminMiddleware, validate(up
 router.get('/products/:id/pictures', cw(pictureController.showProductPictures));
 router.get('/pictures/main', cw(pictureController.showMainPictures));
 router.post('/products/:id/pictures', authMiddleware, adminMiddleware, validate(createPictureSchema), cw(pictureController.createPicture)); // ADMIN
+router.post('/products/:id/pictures/upload', authMiddleware, adminMiddleware, uploadPicture.single('picture'), cw(pictureController.uploadPicture)); // ADMIN
 router.patch('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, validate(updatePictureSchema), cw(pictureController.updatePicture)); // ADMIN
 router.delete('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, cw(pictureController.deletePicture)) ; // ADMIN
 
