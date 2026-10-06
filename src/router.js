@@ -8,6 +8,7 @@ import { shippingRateController } from './controllers/shippingRateController.js'
 import { pictureController } from './controllers/pictureController.js'
 import { authController } from './controllers/authController.js'
 import { relayPointController } from "./controllers/relayPointController.js";
+import { shippingOptionController } from "./controllers/shippingOptionController.js";
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
@@ -78,6 +79,7 @@ router.get('/shipping-methods/:id', cw(shippingMethodController.showOneShippingM
 router.post('/shipping-methods', authMiddleware, adminMiddleware, validate(createShippingMethodSchema), cw(shippingMethodController.createShippingMethod)); // ADMIN
 router.patch('/shipping-methods/:id', authMiddleware, adminMiddleware, validate(updateShippingMethodSchema), cw(shippingMethodController.updateShippingMethod))  ; // ADMIN
 
+router.get("/shipping-options", cw(shippingOptionController.showShippingOptions));
 
 // SHIPPING RATE
 router.get('/shipping-rates', cw(shippingRateController.showAllShippingRates));

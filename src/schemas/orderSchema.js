@@ -57,6 +57,13 @@ const createOrderSchema = joi.object({
             'any.required': 'La méthode de livraison est requise'
         }),
 
+    shippingOptionCode: joi.string()
+        .trim()
+        .optional()
+        .messages({
+            'string.empty': 'Le service de livraison ne peut pas être vide'
+        }),
+
     shippingFirstName: joi.string()
         .trim()
         .min(2)

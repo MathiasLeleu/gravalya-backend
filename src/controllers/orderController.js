@@ -8,6 +8,7 @@ import { ShippingMethod } from '../models/Shipping_Method.js';
 import { ShippingRate } from '../models/Shipping_Rate.js';
 import { Op } from 'sequelize';
 import { badRequest, notFound, conflict, forbidden } from '../utils/error.js';
+import sendcloudService from '../services/sendcloudService.js';
 
 function generateOrderNumber() {
     const date = new Date();
@@ -95,6 +96,7 @@ const orderController = {
             items,
             customerEmail,
             shippingMethodId,
+            shippingOptionCode,
             shippingFirstName,
             shippingLastName,
             shippingCountry,
@@ -206,22 +208,109 @@ const orderController = {
                 });
             }
 
-            amount = Math.round(amount * 100) / 100;
-            totalWeight = Math.round(totalWeight * 1000) / 1000;
+            let shippingCost;
+            let shippingRateId = null;
 
-            const shippingRate = await ShippingRate.findOne({
-                where: {
-                    shippingMethodId,
-                    minWeight: { [Op.lte]: totalWeight },
-                    maxWeight: { [Op.gte]: totalWeight },
-                },
-                transaction: t,
-            });
+            if (shippingMethod.name === "Lettre Suivie") {
+                const shippingRate = await ShippingRate.findOne({
+                    where: {
+                        shippingMethodId,
+                        minWeight: { [Op.lte]: totalWeight },
+                        maxWeight: { [Op.gte]: totalWeight },
+                    },
+                    transaction: t,
+                });
 
-            if (!shippingRate) {
-                badRequest(
-                    'Aucun tarif de livraison ne correspond au poids de la commande.'
-                );
+                if (!shippingRate) {
+                    badRequest(
+                        'Aucun tarif de livraison ne correspond au poids de la commande.'
+                    );
+                }
+
+                shippingCost = parseFloat(shippingRate.cost);
+                shippingRateId = shippingRate.id;
+            } else {
+                if (!shippingOptionCode) {
+                    badRequest(
+                        'Le service de livraison est requis.'
+                    );
+                }
+
+                const shippingServiceCodes = {
+                    "Colissimo-Domicile": "colissimo:home/fr",
+                    "Colissimo-Point relais": "colissimo:post-office",
+
+                    "Chronopost-Domicile": "chronopost:18",
+                    "Chronopost-Point relais": "chronopost:service_point",
+
+                    "Mondial Relay-Domicile":
+                        "mondial_relay:home_domestic,dualapi/c2c",
+
+                    "Mondial Relay-Point relais":
+                        "mondial_relay:service_point,dualapi/size=l,c2c",
+                };
+
+                const serviceKey =
+                    `${shippingMethod.name}-${shippingMethod.deliveryType}`;
+
+                const expectedServiceCode =
+                    shippingServiceCodes[serviceKey];
+
+                if (!expectedServiceCode) {
+                    badRequest(
+                        'Ce mode de livraison ne peut pas utiliser Sendcloud.'
+                    );
+                }
+
+                if (shippingOptionCode !== expectedServiceCode) {
+                    badRequest(
+                        'Le service de livraison sélectionné est invalide.'
+                    );
+                }
+
+                const carrierCodes = {
+                    Chronopost: "chronopost",
+                    Colissimo: "colissimo",
+                    "Mondial Relay": "mondial_relay",
+                };
+
+                const carrierCode = carrierCodes[shippingMethod.name];
+
+                if (!carrierCode) {
+                    badRequest(
+                        'Ce transporteur ne peut pas utiliser Sendcloud.'
+                    );
+                }
+
+                const sendcloudData =
+                    await sendcloudService.getShippingOptions({
+                        postalCode: shippingPostalCode,
+                        city: shippingCity,
+                        weight: totalWeight / 1000,
+                        carrierCode,
+                        deliveryType: shippingMethod.deliveryType,
+                    });
+
+                const shippingOption =
+                    sendcloudData.data?.find(
+                        (option) => option.code === expectedServiceCode
+                    );
+
+                if (!shippingOption) {
+                    badRequest(
+                        'Le service de livraison sélectionné n\'est plus disponible.'
+                    );
+                }
+
+                const quote = shippingOption.quotes?.[0];
+
+                if (!quote?.price?.total?.value) {
+                    badRequest(
+                        'Aucun tarif disponible pour ce service de livraison.'
+                    );
+                }
+
+                shippingCost = parseFloat(quote.price.total.value);
             }
 
             const newOrder = await Order.create({
@@ -229,9 +318,9 @@ const orderController = {
                 statut: "EN_ATTENTE",
                 amount,
                 totalWeight,
-                shippingCost: parseFloat(shippingRate.cost),
+                shippingCost,
                 shippingMethodId,
-                shippingRateId: shippingRate.id,
+                shippingRateId,
                 customerEmail,
                 userId,
                 shippingFirstName,

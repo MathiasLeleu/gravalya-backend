@@ -36,11 +36,43 @@ async function runSeed() {
         // SHIPPING METHODS
         // =========================================================
 
-        const shippingMethod = await ShippingMethod.create({
+        const shippingMethod = await ShippingMethod.bulkCreate([
+        {
             name: "Lettre Suivie",
             carrier: "La Poste",
             deliveryType: "Domicile",
-        });
+        },
+        {
+            name: "Chronopost",
+            carrier: "Chronopost",
+            deliveryType: "Domicile",
+        },
+        {
+            name: "Chronopost",
+            carrier: "Chronopost",
+            deliveryType: "Point relais",
+        },
+        {
+            name: "Colissimo",
+            carrier: "La Poste",
+            deliveryType: "Domicile",
+        },
+        {
+            name: "Colissimo",
+            carrier: "La Poste",
+            deliveryType: "Point relais",
+        },
+        {
+            name: "Mondial Relay",
+            carrier: "Mondial Relay",
+            deliveryType: "Domicile",
+        },
+        {
+            name: "Mondial Relay",
+            carrier: "Mondial Relay",
+            deliveryType: "Point relais",
+        },
+    ]);
 
         // =========================================================
         // SHIPPING RATES
@@ -48,9 +80,9 @@ async function runSeed() {
 
         await ShippingRate.bulkCreate([
             {
-                shippingMethodId: shippingMethod.id,
+                shippingMethodId: shippingMethod[0].id,
                 minWeight: 0.000,
-                maxWeight: 0.020,
+                maxWeight: 20.000,
                 cost: 2.02,
             },
         ]);

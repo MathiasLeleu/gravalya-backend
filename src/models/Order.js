@@ -46,7 +46,7 @@ Order.init(
         },
         shippingRateId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
         },
         userId: {
             type: DataTypes.INTEGER,
