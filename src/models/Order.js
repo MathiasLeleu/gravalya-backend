@@ -15,6 +15,11 @@ Order.init(
             allowNull: false,
             unique: true,
         },
+        idempotencyKey: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            unique: true,
+        },
         customerEmail: {
             type: DataTypes.STRING(255),
             allowNull: false,

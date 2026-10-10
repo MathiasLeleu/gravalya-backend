@@ -92,6 +92,8 @@ const orderController = {
 
     // Create a new order
     async createOrder(req, res) {
+        const idempotencyKey = req.get("Idempotency-Key");
+
         const {
             items,
             customerEmail,
@@ -109,6 +111,33 @@ const orderController = {
         } = req.body;
 
         const userId = req.user?.id || null;
+
+        if (
+            typeof idempotencyKey !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                idempotencyKey
+            )
+        ) {
+            badRequest("Clé d'idempotence absente ou invalide.");
+        }
+
+        const existingOrder = await Order.findOne({
+            where: { idempotencyKey },
+            include: ORDER_INCLUDES,
+        });
+
+        if (existingOrder) {
+            if (
+                existingOrder.customerEmail !== customerEmail ||
+                existingOrder.userId !== userId
+            ) {
+                conflict(
+                    "Cette clé d'idempotence est déjà associée à une autre commande."
+                );
+            }
+
+            return res.status(200).json(existingOrder);
+        }
 
         // Vérification du contenu de la commande
         if (!Array.isArray(items) || items.length === 0) {
@@ -156,7 +185,39 @@ const orderController = {
         );
 
         // Création de la commande dans une transaction
+        let isReplay = false;
+
         const order = await sequelize.transaction(async (t) => {
+            // Verrou PostgreSQL propre à cette clé d'idempotence
+            await sequelize.query(
+                "SELECT pg_advisory_xact_lock(hashtext(:idempotencyKey))",
+                {
+                    replacements: { idempotencyKey },
+                    transaction: t,
+                }
+            );
+
+            // Vérification après acquisition du verrou
+            const existingOrder = await Order.findOne({
+                where: { idempotencyKey },
+                include: ORDER_INCLUDES,
+                transaction: t,
+            });
+
+            if (existingOrder) {
+                if (
+                    existingOrder.customerEmail !== customerEmail ||
+                    existingOrder.userId !== userId
+                ) {
+                    conflict(
+                        "Cette clé d'idempotence est déjà associée à une autre commande."
+                    );
+                }
+
+                isReplay = true;
+                return existingOrder;
+            }
+
             const shippingMethod = await ShippingMethod.findByPk(
                 shippingMethodId,
                 { transaction: t }
@@ -377,6 +438,7 @@ const orderController = {
             // Création de la commande
             const newOrder = await Order.create(
                 {
+                    idempotencyKey,
                     orderNumber: generateOrderNumber(),
                     statut: "EN_ATTENTE",
                     amount,
@@ -441,7 +503,7 @@ const orderController = {
             });
         });
 
-        res.status(201).json(order);
+        res.status(isReplay ? 200 : 201).json(order);
     },
 
     // Update an existing order (statut + infos de livraison)
