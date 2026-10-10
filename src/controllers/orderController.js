@@ -194,7 +194,7 @@ const orderController = {
                 products.map((product) => [product.id, product])
             );
 
-            let amount = 0;
+            let amountCents = 0;
             let totalWeight = 0;
             const orderLinesData = [];
 
@@ -220,19 +220,21 @@ const orderController = {
                     );
                 }
 
-                const unitPrice = parseFloat(product.price);
-                const unitWeight = parseFloat(product.weight);
+                const unitPriceCents = Math.round(Number(product.price) * 100);
+                const unitWeight = Number(product.weight);
 
-                amount += unitPrice * item.quantity;
+                amountCents += unitPriceCents * item.quantity;
                 totalWeight += unitWeight * item.quantity;
 
                 orderLinesData.push({
                     productId: product.id,
                     quantity: item.quantity,
-                    unitPrice,
+                    unitPrice: product.price,
                     unitWeight,
                 });
             }
+
+            const amount = (amountCents / 100).toFixed(2);
 
             // Calcul des frais de livraison
             let shippingCost;
