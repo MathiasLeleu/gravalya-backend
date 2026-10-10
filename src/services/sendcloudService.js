@@ -61,9 +61,7 @@ const sendcloudService = {
                 "Impossible de récupérer les options de livraison Sendcloud."
             );
         }
-        if (carrierCode === "mondial_relay") {
-}
-
+        
         return data;
     },
     

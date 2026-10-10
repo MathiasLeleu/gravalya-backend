@@ -204,24 +204,31 @@ const userController = {
 
 
 
+    
     // Delete a user
     async deleteUser(req, res) {
-        const userId = parseInt(req.params.id);
+        const userId = parseInt(req.params.id, 10);
 
-         if (req.user.id !== userId && req.user.role !== 'admin') {
+        // Vérification des autorisations
+        if (req.user.id !== userId && req.user.role !== "admin") {
             forbidden("Vous n'êtes pas autorisé à supprimer cet utilisateur.");
         }
 
         const user = await User.findByPk(userId);
 
         if (!user) {
-            notFound('Utilisateur non trouvé.');
+            notFound("Utilisateur non trouvé.");
+        }
+
+        // Protection des comptes administrateurs
+        if (user.role === "admin") {
+            forbidden("La suppression d'un compte administrateur est interdite.");
         }
 
         await user.destroy();
 
         res.status(200).json({
-            message: 'Utilisateur supprimé avec succès.'
+            message: "Utilisateur supprimé avec succès.",
         });
     }
 
