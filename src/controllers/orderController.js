@@ -110,8 +110,9 @@ const orderController = {
 
         const userId = req.user?.id || null;
 
+        // Vérification du contenu de la commande
         if (!Array.isArray(items) || items.length === 0) {
-            badRequest('La commande doit contenir au moins un produit.');
+            badRequest("La commande doit contenir au moins un produit.");
         }
 
         if (
@@ -123,17 +124,38 @@ const orderController = {
             !shippingCity ||
             !shippingPhone
         ) {
-            badRequest('Les informations de livraison sont incomplètes.');
+            badRequest("Les informations de livraison sont incomplètes.");
         }
+
+        // Validation des produits et refus des doublons
+        const productQuantities = new Map();
 
         for (const item of items) {
-            if (!item.productId || !item.quantity || item.quantity < 1) {
+            if (
+                !Number.isInteger(item.productId) ||
+                item.productId < 1 ||
+                !Number.isInteger(item.quantity) ||
+                item.quantity < 1 ||
+                item.quantity > 100
+            ) {
+                badRequest("Produit ou quantité invalide.");
+            }
+
+            if (productQuantities.has(item.productId)) {
                 badRequest(
-                    'Chaque article doit avoir un productId et une quantity >= 1.'
+                    `Le produit (id: ${item.productId}) apparaît plusieurs fois dans la commande.`
                 );
             }
+
+            productQuantities.set(item.productId, item.quantity);
         }
 
+        const normalizedItems = Array.from(
+            productQuantities,
+            ([productId, quantity]) => ({ productId, quantity })
+        );
+
+        // Création de la commande dans une transaction
         const order = await sequelize.transaction(async (t) => {
             const shippingMethod = await ShippingMethod.findByPk(
                 shippingMethodId,
@@ -141,7 +163,7 @@ const orderController = {
             );
 
             if (!shippingMethod) {
-                notFound('Méthode de livraison introuvable.');
+                notFound("Méthode de livraison introuvable.");
             }
 
             if (
@@ -149,31 +171,35 @@ const orderController = {
                 !relayPoint
             ) {
                 badRequest(
-                    'Un point relais est requis pour cette méthode de livraison.'
+                    "Un point relais est requis pour cette méthode de livraison."
                 );
             }
 
-            const productIds = items.map((i) => i.productId);
+            // Récupération et verrouillage des produits
+            const productIds = normalizedItems.map(
+                (item) => item.productId
+            );
 
             const products = await Product.findAll({
                 where: {
                     id: {
-                        [Op.in]: productIds
-                    }
+                        [Op.in]: productIds,
+                    },
                 },
                 lock: t.LOCK.UPDATE,
                 transaction: t,
             });
 
             const productMap = new Map(
-                products.map((p) => [p.id, p])
+                products.map((product) => [product.id, product])
             );
 
             let amount = 0;
             let totalWeight = 0;
             const orderLinesData = [];
 
-            for (const item of items) {
+            // Vérification des produits, du stock et calcul des totaux
+            for (const item of normalizedItems) {
                 const product = productMap.get(item.productId);
 
                 if (!product) {
@@ -190,7 +216,7 @@ const orderController = {
 
                 if (product.stockQuantity < item.quantity) {
                     conflict(
-                        `Stock insuffisant pour "${product.name}" (disponible: ${product.stockQuantity}, demandé: ${item.quantity}).`
+                        `Stock insuffisant pour "${product.name}" (disponible : ${product.stockQuantity}, demandé : ${item.quantity}).`
                     );
                 }
 
@@ -208,6 +234,7 @@ const orderController = {
                 });
             }
 
+            // Calcul des frais de livraison
             let shippingCost;
             let shippingRateId = null;
 
@@ -223,7 +250,7 @@ const orderController = {
 
                 if (!shippingRate) {
                     badRequest(
-                        'Aucun tarif de livraison ne correspond au poids de la commande.'
+                        "Aucun tarif de livraison ne correspond au poids de la commande."
                     );
                 }
 
@@ -231,21 +258,16 @@ const orderController = {
                 shippingRateId = shippingRate.id;
             } else {
                 if (!shippingOptionCode) {
-                    badRequest(
-                        'Le service de livraison est requis.'
-                    );
+                    badRequest("Le service de livraison est requis.");
                 }
 
                 const shippingServiceCodes = {
                     "Colissimo-Domicile": "colissimo:home/fr",
                     "Colissimo-Point relais": "colissimo:post-office",
-
                     "Chronopost-Domicile": "chronopost:18",
                     "Chronopost-Point relais": "chronopost:service_point",
-
                     "Mondial Relay-Domicile":
                         "mondial_relay:home_domestic,dualapi/c2c",
-
                     "Mondial Relay-Point relais":
                         "mondial_relay:service_point,dualapi/size=l,c2c",
                 };
@@ -258,13 +280,13 @@ const orderController = {
 
                 if (!expectedServiceCode) {
                     badRequest(
-                        'Ce mode de livraison ne peut pas utiliser Sendcloud.'
+                        "Ce mode de livraison ne peut pas utiliser Sendcloud."
                     );
                 }
 
                 if (shippingOptionCode !== expectedServiceCode) {
                     badRequest(
-                        'Le service de livraison sélectionné est invalide.'
+                        "Le service de livraison sélectionné est invalide."
                     );
                 }
 
@@ -278,7 +300,7 @@ const orderController = {
 
                 if (!carrierCode) {
                     badRequest(
-                        'Ce transporteur ne peut pas utiliser Sendcloud.'
+                        "Ce transporteur ne peut pas utiliser Sendcloud."
                     );
                 }
 
@@ -291,80 +313,98 @@ const orderController = {
                         deliveryType: shippingMethod.deliveryType,
                     });
 
-                const shippingOption =
-                    sendcloudData.data?.find(
-                        (option) => option.code === expectedServiceCode
-                    );
+                const shippingOption = sendcloudData.data?.find(
+                    (option) => option.code === expectedServiceCode
+                );
 
                 if (!shippingOption) {
                     badRequest(
-                        'Le service de livraison sélectionné n\'est plus disponible.'
+                        "Le service de livraison sélectionné n'est plus disponible."
                     );
                 }
 
                 const quote = shippingOption.quotes?.[0];
 
-                if (!quote?.price?.total?.value) {
+                if (
+                    quote?.price?.total?.value === undefined ||
+                    quote?.price?.total?.value === null ||
+                    quote.price.total.value === ""
+                ) {
                     badRequest(
-                        'Aucun tarif disponible pour ce service de livraison.'
+                        "Aucun tarif disponible pour ce service de livraison."
                     );
                 }
 
                 shippingCost = parseFloat(quote.price.total.value);
+
+                if (!Number.isFinite(shippingCost) || shippingCost < 0) {
+                    badRequest(
+                        "Le tarif de livraison reçu est invalide."
+                    );
+                }
             }
 
-            const newOrder = await Order.create({
-                orderNumber: generateOrderNumber(),
-                statut: "EN_ATTENTE",
-                amount,
-                totalWeight,
-                shippingCost,
-                shippingMethodId,
-                shippingRateId,
-                customerEmail,
-                userId,
-                shippingFirstName,
-                shippingLastName,
-                shippingCountry: shippingCountry || "France",
-                shippingAddress,
-                shippingAddress2: shippingAddress2 || null,
-                shippingPostalCode,
-                shippingCity,
-                shippingPhone,
-            }, { transaction: t });
+            // Création de la commande
+            const newOrder = await Order.create(
+                {
+                    orderNumber: generateOrderNumber(),
+                    statut: "EN_ATTENTE",
+                    amount,
+                    totalWeight,
+                    shippingCost,
+                    shippingMethodId,
+                    shippingRateId,
+                    customerEmail,
+                    userId,
+                    shippingFirstName,
+                    shippingLastName,
+                    shippingCountry: shippingCountry || "France",
+                    shippingAddress,
+                    shippingAddress2: shippingAddress2 || null,
+                    shippingPostalCode,
+                    shippingCity,
+                    shippingPhone,
+                },
+                { transaction: t }
+            );
 
+            // Création des lignes de commande
             await OrderLine.bulkCreate(
                 orderLinesData.map((line) => ({
                     ...line,
-                    orderId: newOrder.id
+                    orderId: newOrder.id,
                 })),
                 { transaction: t }
             );
 
-            for (const item of items) {
+            // Décrémentation du stock
+            for (const item of normalizedItems) {
                 const product = productMap.get(item.productId);
 
-                await product.decrement(
-                    "stockQuantity",
+                await product.decrement("stockQuantity", {
+                    by: item.quantity,
+                    transaction: t,
+                });
+            }
+
+            // Enregistrement du point relais
+            if (shippingMethod.deliveryType === "Point relais") {
+                await OrderRelayPoint.create(
                     {
-                        by: item.quantity,
-                        transaction: t
-                    }
+                        orderId: newOrder.id,
+                        relayPointId: relayPoint.relayPointId,
+                        relayPointName: relayPoint.relayPointName,
+                        relayPointAddress: relayPoint.relayPointAddress,
+                        relayPointPostalCode: relayPoint.relayPointPostalCode,
+                        relayPointCity: relayPoint.relayPointCity,
+                        relayPointCountry:
+                            relayPoint.relayPointCountry || "France",
+                    },
+                    { transaction: t }
                 );
             }
 
-            if (shippingMethod.deliveryType === "Point relais") {
-                await OrderRelayPoint.create({
-                    orderId: newOrder.id,
-                    relayPointId: relayPoint.relayPointId,
-                    relayPointName: relayPoint.relayPointName,
-                    relayPointAddress: relayPoint.relayPointAddress,
-                    relayPointPostalCode: relayPoint.relayPointPostalCode,
-                    relayPointCity: relayPoint.relayPointCity,
-                    relayPointCountry: relayPoint.relayPointCountry || "France",
-                }, { transaction: t });
-            }
-
+            // Récupération de la commande complète
             return Order.findByPk(newOrder.id, {
                 include: ORDER_INCLUDES,
                 transaction: t,
