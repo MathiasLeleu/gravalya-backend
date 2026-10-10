@@ -237,7 +237,7 @@ const orderController = {
             const amount = (amountCents / 100).toFixed(2);
 
             // Calcul des frais de livraison
-            let shippingCost;
+            let shippingCostCents;
             let shippingRateId = null;
 
             if (shippingMethod.name === "Lettre Suivie") {
@@ -256,7 +256,23 @@ const orderController = {
                     );
                 }
 
-                shippingCost = parseFloat(shippingRate.cost);
+                const rawShippingCost = shippingRate.cost;
+                const numericShippingCost = Number(rawShippingCost);
+
+                if (
+                    rawShippingCost === null ||
+                    rawShippingCost === undefined ||
+                    rawShippingCost === "" ||
+                    !Number.isFinite(numericShippingCost) ||
+                    numericShippingCost < 0
+                ) {
+                    badRequest("Le tarif de livraison enregistré est invalide.");
+                }
+
+                shippingCostCents = Math.round(
+                    (numericShippingCost + Number.EPSILON) * 100
+                );
+
                 shippingRateId = shippingRate.id;
             } else {
                 if (!shippingOptionCode) {
@@ -337,14 +353,26 @@ const orderController = {
                     );
                 }
 
-                shippingCost = parseFloat(quote.price.total.value);
+                const rawShippingCost = quote.price.total.value;
+                const numericShippingCost = Number(rawShippingCost);
 
-                if (!Number.isFinite(shippingCost) || shippingCost < 0) {
-                    badRequest(
-                        "Le tarif de livraison reçu est invalide."
-                    );
+                if (
+                    rawShippingCost === null ||
+                    rawShippingCost === undefined ||
+                    rawShippingCost === "" ||
+                    !Number.isFinite(numericShippingCost) ||
+                    numericShippingCost < 0
+                ) {
+                    badRequest("Le tarif de livraison reçu est invalide.");
                 }
+
+                shippingCostCents = Math.round(
+                    (numericShippingCost + Number.EPSILON) * 100
+                );
             }
+
+            // Formatage du tarif en euros avec deux décimales
+            const shippingCost = (shippingCostCents / 100).toFixed(2);
 
             // Création de la commande
             const newOrder = await Order.create(
