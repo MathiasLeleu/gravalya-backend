@@ -302,6 +302,11 @@ const orderController = {
             let shippingRateId = null;
 
             if (shippingMethod.name === "Lettre Suivie") {
+                if (totalWeight > 20) {
+                    badRequest(
+                        "La Lettre Suivie est uniquement disponible pour les commandes de 20 g maximum."
+                    );
+                }
                 const shippingRate = await ShippingRate.findOne({
                     where: {
                         shippingMethodId,

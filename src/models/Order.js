@@ -30,6 +30,15 @@ Order.init(
             validate: {
                 min: 0,
             },
+        }, 
+        stripeSessionId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+            unique: true,
+        },
+        paidAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
         },
         totalWeight: {
             type: DataTypes.DECIMAL(10, 3),

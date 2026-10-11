@@ -7,6 +7,8 @@ import { sanitizeInput } from "./src/middlewares/sanitizeInput.js"
 import { router } from "./src/router.js"
 import './src/models/associations.js'
 
+import { stripeWebhookController } from "./src/controllers/stripeWebhookController.js";
+
 import { errorHandler, notFoundHandler } from "./src/middlewares/controllerWrapper.js"
 
 if (!process.env.JWT_SECRET) {
@@ -18,6 +20,12 @@ const app = express();
 app.use(cors({
     origin: ["http://localhost:5173"]
 }));
+
+app.post(
+    "/stripe/webhook",
+    express.raw({ type: "application/json" }),
+    stripeWebhookController.handleWebhook
+);
 
 app.use(express.json());
 

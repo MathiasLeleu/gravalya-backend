@@ -9,6 +9,7 @@ import { pictureController } from './controllers/pictureController.js'
 import { authController } from './controllers/authController.js'
 import { relayPointController } from "./controllers/relayPointController.js";
 import { shippingOptionController } from "./controllers/shippingOptionController.js";
+import { paymentController } from "./controllers/paymentController.js";
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
@@ -97,4 +98,10 @@ router.delete('/products/:id/pictures/:pictureId', authMiddleware, adminMiddlewa
 
 // RELAY POINTS 
 router.get("/relay-points",cw(relayPointController.showServicePoints));
+
+
+// PAYMENT
+router.post("/orders/:orderId/checkout", cw(paymentController.createCheckoutSession));
+router.get("/payment/checkout-status", cw(paymentController.getCheckoutStatus));
+
 export { router }
