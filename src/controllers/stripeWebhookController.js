@@ -1,4 +1,5 @@
 import { Order } from "../models/Order.js";
+import { OrderLine } from "../models/Order_Line.js";
 import { Product } from "../models/Product.js";
 import { sequelize } from "../models/connection.js";
 import { stripe } from "../services/stripeService.js";
@@ -58,7 +59,6 @@ const stripeWebhookController = {
             if (event.type === "checkout.session.expired") {
                 await sequelize.transaction(async (t) => {
                     const order = await Order.findByPk(orderId, {
-                        include: [{ association: "orderLines" }],
                         transaction: t,
                         lock: t.LOCK.UPDATE,
                     });
@@ -70,6 +70,11 @@ const stripeWebhookController = {
                         );
                         return;
                     }
+
+                    const orderLines = await OrderLine.findAll({
+                        where: { orderId: order.id },
+                        transaction: t,
+                    });
 
                     if (order.stripeSessionId !== session.id) {
                         console.warn(
@@ -88,7 +93,7 @@ const stripeWebhookController = {
                     order.statut = "ANNULEE";
                     await order.save({ transaction: t });
 
-                    for (const line of order.orderLines) {
+                    for (const line of orderLines) {
                         await Product.increment("stockQuantity", {
                             by: Number(line.quantity),
                             where: { id: line.productId },
