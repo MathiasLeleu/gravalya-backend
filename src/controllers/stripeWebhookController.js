@@ -84,26 +84,53 @@ const stripeWebhookController = {
                 return res.status(500).send("Montant du paiement invalide.");
             }
 
-            // Le webhook peut être reçu plusieurs fois.
-            // Une commande déjà confirmée ne doit pas être retraitée.
-            if (order.statut === "CONFIRMEE") {
-                return res.status(200).json({ received: true });
-            }
+            
+            const [updatedRows] = await Order.update(
+                {
+                    statut: "CONFIRMEE",
+                    paidAt: new Date(),
+                },
+                {
+                    where: {
+                        id: order.id,
+                        statut: "EN_ATTENTE",
+                    },
+                }
+            );
 
-            if (order.statut !== "EN_ATTENTE") {
+            // Une autre requête a pu modifier la commande entre-temps.
+            if (updatedRows === 0) {
+                const currentOrder = await Order.findByPk(order.id);
+
+                if (currentOrder?.statut === "CONFIRMEE") {
+                    // Événement Stripe déjà traité : aucune nouvelle modification.
+                    return res.status(200).json({ received: true });
+                }
+
+                if (currentOrder?.statut === "ANNULEE") {
+                    console.error(
+                        `ALERTE : paiement encaissé pour la commande annulée ${order.orderNumber}. Vérification manuelle nécessaire.`
+                    );
+
+                    // Le paiement doit être examiné manuellement.
+                    // Aucun remboursement automatique n'est effectué ici.
+                    return res.status(200).json({ received: true });
+                }
+
                 console.error(
-                    "Statut inattendu pour une commande payée :",
+                    "Impossible de confirmer la commande après paiement :",
                     order.orderNumber,
-                    order.statut
+                    currentOrder?.statut
                 );
 
-                return res.status(200).json({ received: true });
+                return res.status(500).send(
+                    "Impossible de confirmer la commande."
+                );
             }
 
-            await order.update({
-                statut: "CONFIRMEE",
-                paidAt: new Date(),
-            });
+            console.log(
+                `Paiement Stripe confirmé pour la commande ${order.orderNumber}.`
+            );
 
             console.log(
                 `Paiement Stripe confirmé pour la commande ${order.orderNumber}.`

@@ -603,11 +603,24 @@ const orderController = {
                 );
             }
 
+            
             // Modification du statut : réservée à un admin
+            const previousStatus = order.statut;
+
             if (statut !== undefined) {
                 if (req.user.role !== "admin") {
                     forbidden(
                         "Seul un administrateur peut modifier le statut de la commande."
+                    );
+                }
+
+                // Une commande annulée ne peut pas être réactivée
+                if (
+                    previousStatus === "ANNULEE" &&
+                    statut !== "ANNULEE"
+                ) {
+                    badRequest(
+                        "Impossible de réactiver une commande annulée."
                     );
                 }
 
@@ -647,7 +660,55 @@ const orderController = {
                 order.shippingPhone = shippingPhone;
             }
 
-            await order.save();
+            // Annulation : changement de statut et restauration du stock
+            // dans une seule transaction
+            if (
+                statut === "ANNULEE" &&
+                previousStatus !== "ANNULEE"
+            ) {
+                await sequelize.transaction(async (t) => {
+                    const [updatedRows] = await Order.update(
+                        { statut: "ANNULEE" },
+                        {
+                            where: {
+                                id: order.id,
+                                statut: previousStatus,
+                            },
+                            transaction: t,
+                        }
+                    );
+
+                    if (updatedRows === 0) {
+                        conflict(
+                            "Cette commande a déjà été modifiée. Actualisez les données."
+                        );
+                    }
+
+                    const orderWithLines = await Order.findByPk(
+                        order.id,
+                        {
+                            include: [
+                                { association: "orderLines" },
+                            ],
+                            transaction: t,
+                        }
+                    );
+
+                    if (!orderWithLines) {
+                        notFound("Commande non trouvée.");
+                    }
+
+                    for (const line of orderWithLines.orderLines) {
+                        await Product.increment("stockQuantity", {
+                            by: line.quantity,
+                            where: { id: line.productId },
+                            transaction: t,
+                        });
+                    }
+                });
+            } else {
+                await order.save();
+            }
 
             if (relayPoint) {
                 const orderRelayPoint = await OrderRelayPoint.findOne({
