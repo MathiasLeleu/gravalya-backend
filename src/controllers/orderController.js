@@ -724,18 +724,30 @@ const orderController = {
             }
 
             await sequelize.transaction(async (t) => {
-                // Restock des produits
+                const [updatedRows] = await Order.update(
+                    { statut: "ANNULEE" },
+                    {
+                        where: {
+                            id: order.id,
+                            statut: "EN_ATTENTE",
+                        },
+                        transaction: t,
+                    }
+                );
+
+                if (updatedRows === 0) {
+                    conflict(
+                        "Cette commande a déjà été modifiée et ne peut plus être annulée."
+                    );
+                }
+
                 for (const line of order.orderLines) {
-                    await Product.increment('stockQuantity', {
+                    await Product.increment("stockQuantity", {
                         by: line.quantity,
                         where: { id: line.productId },
                         transaction: t,
                     });
                 }
-
-                order.statut = "ANNULEE";
-
-                await order.save({ transaction: t });
             });
 
             res.status(200).json({
