@@ -1,4 +1,49 @@
 const sendcloudService = {
+    
+    async createShipment(payload) {
+        const credentials = Buffer.from(
+            `${process.env.SENDCLOUD_PUBLIC_KEY}:${process.env.SENDCLOUD_PRIVATE_KEY}`
+        ).toString("base64");
+
+        const response = await fetch(
+            "https://panel.sendcloud.sc/api/v3/shipments/announce",
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Basic ${credentials}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                body: JSON.stringify(payload),
+            }
+        );
+
+        const responseText = await response.text();
+
+        let data;
+
+        try {
+            data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            const error = new Error(
+                data.message ||
+                data.detail ||
+                `Erreur Sendcloud lors de la création de l'expédition (HTTP ${response.status}).`
+            );
+
+            error.status = response.status;
+            error.details = data;
+
+            throw error;
+        }
+
+        return data;
+    },
+    
     async getShippingOptions({
         postalCode,
         city,

@@ -4,6 +4,7 @@ import { OrderLine } from "../models/Order_Line.js";
 import { Product } from "../models/Product.js";
 import { sequelize } from "../models/connection.js";
 import { stripe } from "../services/stripeService.js";
+import sendcloudShipmentService from "../services/sendcloudShipmentService.js";
 
 const stripeWebhookController = {
     async handleWebhook(req, res) {
@@ -113,7 +114,7 @@ const stripeWebhookController = {
                 return res.status(200).json({ received: true });
             }
 
-            // On vérifie la commande et son état dans une transaction.
+            // Vérification de la commande dans une transaction SQL.
             const result = await sequelize.transaction(async (t) => {
                 const order = await Order.findByPk(orderId, {
                     transaction: t,
@@ -148,7 +149,7 @@ const stripeWebhookController = {
                     );
                 }
 
-                // Un remboursement déjà réussi ne doit jamais être relancé.
+                // Une commande annulée et payée doit être remboursée.
                 if (order.statut === "ANNULEE") {
                     if (!session.payment_intent) {
                         throw new Error(
@@ -164,9 +165,8 @@ const stripeWebhookController = {
                         return { action: "IGNORE" };
                     }
 
-                    // On conserve une clé stable pour la même commande/session.
-                    // EN_COURS peut correspondre à une interruption après
-                    // l'appel Stripe : on reprend avec la même clé.
+                    // Une clé stable permet de reprendre un remboursement
+                    // sans créer plusieurs remboursements Stripe.
                     if (order.refundStatus !== "EN_COURS") {
                         order.refundRequestedAt = new Date();
                     }
@@ -188,6 +188,9 @@ const stripeWebhookController = {
                     };
                 }
 
+                // Une commande déjà confirmée ne doit pas être reconfirmée.
+                // Cela empêche un ancien événement Stripe de déclencher
+                // une nouvelle création d'expédition.
                 if (order.statut === "CONFIRMEE") {
                     return { action: "IGNORE" };
                 }
@@ -207,10 +210,14 @@ const stripeWebhookController = {
                     `Paiement Stripe confirmé pour la commande ${order.orderNumber}.`
                 );
 
-                return { action: "CONFIRM" };
+                return {
+                    action: "CONFIRM",
+                    orderId: order.id,
+                    orderNumber: order.orderNumber,
+                };
             });
 
-            // L'appel à Stripe est réalisé hors transaction SQL.
+            // Le remboursement Stripe est réalisé hors transaction SQL.
             if (result.action === "REFUND") {
                 const refund = await stripe.refunds.create(
                     {
@@ -222,7 +229,6 @@ const stripeWebhookController = {
                     }
                 );
 
-                // On enregistre le résultat dans une nouvelle transaction.
                 await sequelize.transaction(async (t) => {
                     const order = await Order.findByPk(result.orderId, {
                         transaction: t,
@@ -271,8 +277,7 @@ const stripeWebhookController = {
                         return;
                     }
 
-                    // Par exemple, Stripe peut encore traiter le remboursement.
-                    // On conserve EN_COURS pour ne pas le considérer comme terminé.
+                    // Le remboursement est encore en cours de traitement.
                     order.refundStatus = "EN_COURS";
                     order.refundError = null;
 
@@ -284,6 +289,28 @@ const stripeWebhookController = {
                 });
             }
 
+            // Création de l'expédition uniquement lors de la confirmation
+            // initiale de la commande. Une erreur Sendcloud ne doit pas
+            // remettre en cause un paiement déjà confirmé.
+            if (result.action === "CONFIRM") {
+                try {
+                    const shipmentResult =
+                        await sendcloudShipmentService.createForOrder(
+                            result.orderId
+                        );
+
+                    console.log(
+                        `Résultat Sendcloud pour ${result.orderNumber} :`,
+                        shipmentResult
+                    );
+                } catch (sendcloudError) {
+                    console.error(
+                        `Erreur Sendcloud pour la commande ${result.orderNumber} :`,
+                        sendcloudError.message
+                    );
+                }
+            }
+
             return res.status(200).json({ received: true });
         } catch (error) {
             console.error(
@@ -291,8 +318,7 @@ const stripeWebhookController = {
                 error
             );
 
-            // On conserve une trace de l'erreur pour permettre le diagnostic.
-            // Stripe recevra un HTTP 500 et pourra réessayer le webhook.
+            // On conserve une trace des erreurs de remboursement.
             if (
                 event.type !== "checkout.session.expired" &&
                 session.payment_status === "paid"
@@ -310,9 +336,6 @@ const stripeWebhookController = {
                             order.statut === "ANNULEE" &&
                             order.refundStatus === "EN_COURS"
                         ) {
-                            // Le résultat Stripe peut être incertain (erreur réseau,
-                            // délai dépassé, interruption). On conserve EN_COURS pour
-                            // permettre une reprise avec la même clé d'idempotence.
                             order.refundError = String(
                                 error.message || error
                             ).slice(0, 5000);

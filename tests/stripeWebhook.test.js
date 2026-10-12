@@ -77,6 +77,40 @@ mock.module(
     { exports: { stripe } },
 );
 
+
+const sendcloudState = {
+    calls: [],
+    shouldFail: false,
+};
+
+const sendcloudShipmentService = {
+    createForOrder: async (orderId) => {
+        sendcloudState.calls.push(orderId);
+
+        if (sendcloudState.shouldFail) {
+            throw new Error("Erreur Sendcloud simulée");
+        }
+
+        return {
+            status: "CREEE",
+            shipmentId: "shipment_test_123",
+        };
+    },
+};
+
+
+mock.module(
+    new URL(
+        "../src/services/sendcloudShipmentService.js",
+        import.meta.url,
+    ).href,
+    {
+        exports: {
+            default: sendcloudShipmentService,
+        },
+    },
+);
+
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
 let handleWebhook;
@@ -98,6 +132,9 @@ function prepareTest({ amount = 1067, currency = "eur" } = {}) {
     state.stockUpdates = [];
     state.refundCalls = [];
     state.refundShouldFail = false;
+
+    sendcloudState.calls = [];
+    sendcloudState.shouldFail = false;
 
     state.order = {
         id: 24,
@@ -427,5 +464,41 @@ describe("Webhook Stripe — expiration de session", () => {
         assert.equal(state.order.statut, "CONFIRMEE");
         assert.equal(state.saveCalls, 0);
         assert.equal(state.stockCalls, 0);
+    });
+});
+
+
+describe("Webhook Stripe — intégration Sendcloud simulée", () => {
+    it("appelle Sendcloud une seule fois lors de la confirmation initiale", async () => {
+        prepareTest();
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "CONFIRMEE");
+        assert.deepEqual(sendcloudState.calls, [24]);
+    });
+
+    it("ne rappelle pas Sendcloud pour un paiement déjà confirmé", async () => {
+        prepareTest();
+
+        state.order.statut = "CONFIRMEE";
+        state.order.paidAt = new Date("2026-10-11T16:28:54.114Z");
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.deepEqual(sendcloudState.calls, []);
+    });
+
+    it("conserve la confirmation du paiement si Sendcloud échoue", async () => {
+        prepareTest();
+        sendcloudState.shouldFail = true;
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "CONFIRMEE");
+        assert.deepEqual(sendcloudState.calls, [24]);
     });
 });

@@ -67,6 +67,44 @@ Order.init(
             type: DataTypes.TEXT,
             allowNull: true,
         },
+        
+        // Suivi de l'expédition Sendcloud
+        sendcloudStatus: {
+            type: DataTypes.STRING(20),
+            allowNull: false,
+            defaultValue: "NON_CREEE",
+            validate: {
+                isIn: [["NON_CREEE", "EN_COURS", "CREEE", "ERREUR"]],
+            },
+        },
+        sendcloudShipmentId: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+        },
+        sendcloudParcelId: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+        },
+        sendcloudTrackingNumber: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+        },
+        sendcloudTrackingUrl: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        sendcloudLabelUrl: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        sendcloudError: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        sendcloudCreatedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+        },
         totalWeight: {
             type: DataTypes.DECIMAL(10, 3),
             allowNull: false,
