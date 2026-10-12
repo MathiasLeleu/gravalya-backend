@@ -1,3 +1,4 @@
+
 import { Order } from "../models/Order.js";
 import { OrderLine } from "../models/Order_Line.js";
 import { Product } from "../models/Product.js";
@@ -71,11 +72,6 @@ const stripeWebhookController = {
                         return;
                     }
 
-                    const orderLines = await OrderLine.findAll({
-                        where: { orderId: order.id },
-                        transaction: t,
-                    });
-
                     if (order.stripeSessionId !== session.id) {
                         console.warn(
                             "La session expirée ne correspond pas à la commande :",
@@ -85,10 +81,13 @@ const stripeWebhookController = {
                     }
 
                     if (order.statut !== "EN_ATTENTE") {
-                        // Commande déjà confirmée ou annulée :
-                        // aucune restitution supplémentaire.
                         return;
                     }
+
+                    const orderLines = await OrderLine.findAll({
+                        where: { orderId: order.id },
+                        transaction: t,
+                    });
 
                     order.statut = "ANNULEE";
                     await order.save({ transaction: t });
@@ -109,13 +108,13 @@ const stripeWebhookController = {
                 return res.status(200).json({ received: true });
             }
 
-            // Une commande ne peut être confirmée que si Stripe indique
-            // explicitement que le paiement est encaissé.
+            // Seuls les paiements réellement encaissés sont traités.
             if (session.payment_status !== "paid") {
                 return res.status(200).json({ received: true });
             }
 
-            await sequelize.transaction(async (t) => {
+            // On vérifie la commande et son état dans une transaction.
+            const result = await sequelize.transaction(async (t) => {
                 const order = await Order.findByPk(orderId, {
                     transaction: t,
                     lock: t.LOCK.UPDATE,
@@ -132,7 +131,8 @@ const stripeWebhookController = {
                         "La session Stripe ne correspond pas à la commande :",
                         order.orderNumber
                     );
-                    return;
+
+                    return { action: "IGNORE" };
                 }
 
                 const expectedAmountCents = Math.round(
@@ -148,27 +148,53 @@ const stripeWebhookController = {
                     );
                 }
 
-                if (order.statut === "CONFIRMEE") {
-                    // Événement déjà traité : aucune modification.
-                    return;
+                // Un remboursement déjà réussi ne doit jamais être relancé.
+                if (order.statut === "ANNULEE") {
+                    if (!session.payment_intent) {
+                        throw new Error(
+                            `PaymentIntent absent pour la commande ${order.orderNumber}.`
+                        );
+                    }
+
+                    if (order.refundStatus === "REUSSI") {
+                        console.log(
+                            `Remboursement déjà effectué pour la commande ${order.orderNumber}.`
+                        );
+
+                        return { action: "IGNORE" };
+                    }
+
+                    // On conserve une clé stable pour la même commande/session.
+                    // EN_COURS peut correspondre à une interruption après
+                    // l'appel Stripe : on reprend avec la même clé.
+                    if (order.refundStatus !== "EN_COURS") {
+                        order.refundRequestedAt = new Date();
+                    }
+
+                    order.refundStatus = "EN_COURS";
+                    order.refundError = null;
+
+                    await order.save({ transaction: t });
+
+                    return {
+                        action: "REFUND",
+                        orderId: order.id,
+                        orderNumber: order.orderNumber,
+                        sessionId: session.id,
+                        paymentIntent:
+                            typeof session.payment_intent === "string"
+                                ? session.payment_intent
+                                : session.payment_intent.id,
+                    };
                 }
 
-                if (order.statut === "ANNULEE") {
-                    console.error(
-                        `ALERTE : paiement encaissé pour la commande annulée ${order.orderNumber}. Vérification manuelle nécessaire.`
-                    );
-
-                    // Ne pas réactiver automatiquement la commande.
-                    // Ne pas rembourser automatiquement sans procédure dédiée.
-                    return;
+                if (order.statut === "CONFIRMEE") {
+                    return { action: "IGNORE" };
                 }
 
                 if (order.statut !== "EN_ATTENTE") {
-                    console.error(
-                        `Statut inattendu après paiement pour ${order.orderNumber} : ${order.statut}`
-                    );
                     throw new Error(
-                        "Impossible de confirmer la commande après paiement."
+                        `Statut inattendu après paiement pour ${order.orderNumber} : ${order.statut}`
                     );
                 }
 
@@ -180,7 +206,83 @@ const stripeWebhookController = {
                 console.log(
                     `Paiement Stripe confirmé pour la commande ${order.orderNumber}.`
                 );
+
+                return { action: "CONFIRM" };
             });
+
+            // L'appel à Stripe est réalisé hors transaction SQL.
+            if (result.action === "REFUND") {
+                const refund = await stripe.refunds.create(
+                    {
+                        payment_intent: result.paymentIntent,
+                    },
+                    {
+                        idempotencyKey:
+                            `refund-cancelled-order-${result.orderId}-${result.sessionId}`,
+                    }
+                );
+
+                // On enregistre le résultat dans une nouvelle transaction.
+                await sequelize.transaction(async (t) => {
+                    const order = await Order.findByPk(result.orderId, {
+                        transaction: t,
+                        lock: t.LOCK.UPDATE,
+                    });
+
+                    if (!order) {
+                        throw new Error(
+                            `Commande ${result.orderNumber} introuvable après le remboursement Stripe.`
+                        );
+                    }
+
+                    if (order.stripeSessionId !== result.sessionId) {
+                        throw new Error(
+                            `La session Stripe ne correspond plus à la commande ${result.orderNumber}.`
+                        );
+                    }
+
+                    order.stripeRefundId = refund.id;
+
+                    if (refund.status === "succeeded") {
+                        order.refundStatus = "REUSSI";
+                        order.refundCompletedAt = new Date();
+                        order.refundError = null;
+
+                        await order.save({ transaction: t });
+
+                        console.log(
+                            `Remboursement Stripe réussi pour la commande ${result.orderNumber}.`
+                        );
+
+                        return;
+                    }
+
+                    if (refund.status === "failed") {
+                        order.refundStatus = "ECHEC";
+                        order.refundError =
+                            "Stripe indique que le remboursement a échoué.";
+
+                        await order.save({ transaction: t });
+
+                        console.error(
+                            `Échec du remboursement Stripe pour la commande ${result.orderNumber}. Intervention nécessaire.`
+                        );
+
+                        return;
+                    }
+
+                    // Par exemple, Stripe peut encore traiter le remboursement.
+                    // On conserve EN_COURS pour ne pas le considérer comme terminé.
+                    order.refundStatus = "EN_COURS";
+                    order.refundError = null;
+
+                    await order.save({ transaction: t });
+
+                    console.log(
+                        `Remboursement Stripe en cours pour la commande ${result.orderNumber} : ${refund.status}.`
+                    );
+                });
+            }
 
             return res.status(200).json({ received: true });
         } catch (error) {
@@ -189,7 +291,43 @@ const stripeWebhookController = {
                 error
             );
 
-            // Réponse 500 pour permettre à Stripe de réessayer.
+            // On conserve une trace de l'erreur pour permettre le diagnostic.
+            // Stripe recevra un HTTP 500 et pourra réessayer le webhook.
+            if (
+                event.type !== "checkout.session.expired" &&
+                session.payment_status === "paid"
+            ) {
+                try {
+                    await sequelize.transaction(async (t) => {
+                        const order = await Order.findByPk(orderId, {
+                            transaction: t,
+                            lock: t.LOCK.UPDATE,
+                        });
+
+                        if (
+                            order &&
+                            order.stripeSessionId === session.id &&
+                            order.statut === "ANNULEE" &&
+                            order.refundStatus === "EN_COURS"
+                        ) {
+                            // Le résultat Stripe peut être incertain (erreur réseau,
+                            // délai dépassé, interruption). On conserve EN_COURS pour
+                            // permettre une reprise avec la même clé d'idempotence.
+                            order.refundError = String(
+                                error.message || error
+                            ).slice(0, 5000);
+
+                            await order.save({ transaction: t });
+                        }
+                    });
+                } catch (trackingError) {
+                    console.error(
+                        "Impossible d'enregistrer l'erreur de remboursement :",
+                        trackingError
+                    );
+                }
+            }
+
             return res.status(500).send(
                 "Erreur de traitement du webhook."
             );

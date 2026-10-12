@@ -40,6 +40,33 @@ Order.init(
             type: DataTypes.DATE,
             allowNull: true,
         },
+        refundStatus: {
+            type: DataTypes.ENUM(
+                "AUCUN",
+                "EN_COURS",
+                "REUSSI",
+                "ECHEC"
+            ),
+            allowNull: false,
+            defaultValue: "AUCUN",
+        },
+        stripeRefundId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+            unique: true,
+        },
+        refundRequestedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+        },
+        refundCompletedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+        },
+        refundError: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
         totalWeight: {
             type: DataTypes.DECIMAL(10, 3),
             allowNull: false,

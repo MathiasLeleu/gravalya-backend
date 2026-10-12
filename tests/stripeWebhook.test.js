@@ -9,6 +9,8 @@ const state = {
     saveCalls: 0,
     stockCalls: 0,
     stockUpdates: [],
+    refundCalls: [],
+    refundShouldFail: false,
 };
 
 const Order = {
@@ -38,6 +40,17 @@ const sequelize = {
 const stripe = {
     webhooks: {
         constructEvent: () => state.event,
+    },
+    refunds: {
+        create: async (params, options) => {
+            state.refundCalls.push({ params, options });
+
+            if (state.refundShouldFail) {
+                throw new Error("Erreur réseau simulée");
+            }
+
+            return { id: "re_test_refund", status: "succeeded" };
+        },
     },
 };
 
@@ -83,6 +96,8 @@ function prepareTest({ amount = 1067, currency = "eur" } = {}) {
 
     state.orderLines = [];
     state.stockUpdates = [];
+    state.refundCalls = [];
+    state.refundShouldFail = false;
 
     state.order = {
         id: 24,
@@ -95,6 +110,11 @@ function prepareTest({ amount = 1067, currency = "eur" } = {}) {
         async save() {
             state.saveCalls++;
         },
+        refundStatus: "AUCUN",
+        stripeRefundId: null,
+        refundRequestedAt: null,
+        refundCompletedAt: null,
+        refundError: null,
     };
 
     state.event = {
@@ -102,6 +122,7 @@ function prepareTest({ amount = 1067, currency = "eur" } = {}) {
         data: {
             object: {
                 id: "cs_test_session",
+                payment_intent: "pi_test_payment",
                 metadata: { orderId: "24" },
                 payment_status: "paid",
                 amount_total: amount,
@@ -206,8 +227,7 @@ describe("Webhook Stripe — validation du paiement", () => {
         assert.equal(state.stockCalls, 0);
     });
 
-    
-    it("ne réactive pas une commande annulée après un paiement", async () => {
+    it("rembourse un paiement reçu pour une commande annulée sans la réactiver", async () => {
         prepareTest();
 
         state.order.statut = "ANNULEE";
@@ -216,7 +236,108 @@ describe("Webhook Stripe — validation du paiement", () => {
 
         assert.equal(res.statusCode, 200);
         assert.equal(state.order.statut, "ANNULEE");
+
+        // Une sauvegarde avant Stripe, une autre après le succès.
+        assert.equal(state.saveCalls, 2);
+        assert.equal(state.stockCalls, 0);
+
+        assert.equal(state.refundCalls.length, 1);
+        assert.equal(
+            state.refundCalls[0].params.payment_intent,
+            "pi_test_payment"
+        );
+        assert.equal(
+            state.refundCalls[0].options.idempotencyKey,
+            "refund-cancelled-order-24-cs_test_session"
+        );
+
+        assert.equal(state.order.refundStatus, "REUSSI");
+        assert.equal(state.order.stripeRefundId, "re_test_refund");
+        assert.ok(state.order.refundRequestedAt);
+        assert.ok(state.order.refundCompletedAt);
+        assert.equal(state.order.refundError, null);
+    });
+    
+    it("ne demande pas un second remboursement si le remboursement est déjà réussi", async () => {
+        prepareTest();
+
+        state.order.statut = "ANNULEE";
+        state.order.refundStatus = "REUSSI";
+        state.order.stripeRefundId = "re_test_refund";
+        state.order.refundRequestedAt = new Date();
+        state.order.refundCompletedAt = new Date();
+        state.order.refundError = null;
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.order.refundStatus, "REUSSI");
+        assert.equal(state.order.stripeRefundId, "re_test_refund");
+
+        assert.equal(state.refundCalls.length, 0);
         assert.equal(state.saveCalls, 0);
+        assert.equal(state.stockCalls, 0);
+    });
+    
+    it("conserve le remboursement en cours si l'appel Stripe échoue", async () => {
+        prepareTest();
+
+        state.order.statut = "ANNULEE";
+        state.refundShouldFail = true;
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 500);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.order.refundStatus, "EN_COURS");
+        assert.equal(state.order.refundError, "Erreur réseau simulée");
+
+        assert.ok(state.order.refundRequestedAt);
+        assert.equal(state.order.refundCompletedAt, null);
+        assert.equal(state.order.stripeRefundId, null);
+
+        assert.equal(state.refundCalls.length, 1);
+        assert.equal(state.stockCalls, 0);
+    });
+    
+    it("réussit le remboursement lors d'une nouvelle tentative avec la même clé d'idempotence", async () => {
+        prepareTest();
+
+        state.order.statut = "ANNULEE";
+        state.refundShouldFail = true;
+
+        // Première tentative : erreur réseau
+        const firstRes = await sendWebhook();
+
+        assert.equal(firstRes.statusCode, 500);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.order.refundStatus, "EN_COURS");
+        assert.equal(state.order.refundError, "Erreur réseau simulée");
+        assert.equal(state.refundCalls.length, 1);
+
+        const firstIdempotencyKey =
+            state.refundCalls[0].options.idempotencyKey;
+
+        // Deuxième tentative : Stripe répond avec succès
+        state.refundShouldFail = false;
+
+        const secondRes = await sendWebhook();
+
+        assert.equal(secondRes.statusCode, 200);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.order.refundStatus, "REUSSI");
+        assert.equal(state.order.stripeRefundId, "re_test_refund");
+        assert.ok(state.order.refundCompletedAt);
+        assert.equal(state.order.refundError, null);
+
+        assert.equal(state.refundCalls.length, 2);
+
+        assert.equal(
+            state.refundCalls[1].options.idempotencyKey,
+            firstIdempotencyKey
+        );
+
         assert.equal(state.stockCalls, 0);
     });
 });
