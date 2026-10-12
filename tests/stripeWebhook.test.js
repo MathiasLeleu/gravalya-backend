@@ -5,8 +5,10 @@ import { mock } from "node:test";
 const state = {
     event: null,
     order: null,
+    orderLines: [],
     saveCalls: 0,
     stockCalls: 0,
+    stockUpdates: [],
 };
 
 const Order = {
@@ -14,12 +16,17 @@ const Order = {
 };
 
 const OrderLine = {
-    findAll: async () => [],
+    findAll: async () => state.orderLines,
 };
 
 const Product = {
-    increment: async () => {
+    increment: async (field, options) => {
         state.stockCalls++;
+        state.stockUpdates.push({ 
+            field, 
+            by: options.by,
+            productId: options.where.id,
+         });
     },
 };
 
@@ -73,6 +80,9 @@ after(() => {
 function prepareTest({ amount = 1067, currency = "eur" } = {}) {
     state.saveCalls = 0;
     state.stockCalls = 0;
+
+    state.orderLines = [];
+    state.stockUpdates = [];
 
     state.order = {
         id: 24,
@@ -206,6 +216,94 @@ describe("Webhook Stripe — validation du paiement", () => {
 
         assert.equal(res.statusCode, 200);
         assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.saveCalls, 0);
+        assert.equal(state.stockCalls, 0);
+    });
+});
+
+describe("Webhook Stripe — expiration de session", () => {
+    it("annule la commande et restitue le stock à l'expiration", async () => {
+        prepareTest();
+
+        state.event.type = "checkout.session.expired";
+        state.orderLines = [
+            { productId: 1, quantity: 2 },
+            { productId: 2, quantity: 3 },
+        ];
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.saveCalls, 1);
+        assert.equal(state.stockCalls, 2);
+
+        assert.deepEqual(state.stockUpdates, [
+            {
+                field: "stockQuantity",
+                by: 2,
+                productId: 1,
+            },
+            {
+                field: "stockQuantity",
+                by: 3,
+                productId: 2,
+            },
+        ]);
+    });
+
+    it("ne restitue pas le stock deux fois lors d'une expiration répétée", async () => {
+        prepareTest();
+
+        state.event.type = "checkout.session.expired";
+        state.orderLines = [
+            { productId: 1, quantity: 2 },
+        ];
+
+        const firstRes = await sendWebhook();
+
+        assert.equal(firstRes.statusCode, 200);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.stockCalls, 1);
+
+        const secondRes = await sendWebhook();
+
+        assert.equal(secondRes.statusCode, 200);
+        assert.equal(state.order.statut, "ANNULEE");
+        assert.equal(state.saveCalls, 1);
+        assert.equal(state.stockCalls, 1);
+    });
+
+    it("ignore une session expirée qui ne correspond pas à la commande", async () => {
+        prepareTest();
+
+        state.event.type = "checkout.session.expired";
+        state.event.data.object.id = "cs_test_session_incorrecte";
+        state.orderLines = [
+            { productId: 1, quantity: 2 },
+        ];
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "EN_ATTENTE");
+        assert.equal(state.saveCalls, 0);
+        assert.equal(state.stockCalls, 0);
+    });
+
+    it("ne modifie pas une commande déjà confirmée à l'expiration", async () => {
+        prepareTest();
+
+        state.event.type = "checkout.session.expired";
+        state.order.statut = "CONFIRMEE";
+        state.orderLines = [
+            { productId: 1, quantity: 2 },
+        ];
+
+        const res = await sendWebhook();
+
+        assert.equal(res.statusCode, 200);
+        assert.equal(state.order.statut, "CONFIRMEE");
         assert.equal(state.saveCalls, 0);
         assert.equal(state.stockCalls, 0);
     });
