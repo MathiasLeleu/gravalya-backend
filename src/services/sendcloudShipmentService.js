@@ -3,11 +3,103 @@ import { Order } from "../models/Order.js";
 import { ShippingMethod } from "../models/Shipping_Method.js";
 import { sequelize } from "../models/connection.js";
 
+import { notFound } from "../utils/error.js";
+
 import sendcloudService from "./sendcloudService.js";
 import sendcloudShipmentPayloadService from "./sendcloudShipmentPayloadService.js";
 import sendcloudShipmentResultService from "./sendcloudShipmentResultService.js";
 
 const sendcloudShipmentService = {
+    async refreshShipmentForOrder(orderId) {
+        if (
+            !Number.isSafeInteger(Number(orderId)) ||
+            Number(orderId) <= 0
+        ) {
+            throw new Error("Identifiant de commande invalide.");
+        }
+
+        // Charger la commande sans modifier son état.
+        const order = await Order.findByPk(Number(orderId));
+
+        if (!order) {
+            throw new Error("Commande introuvable.");
+        }
+
+        if (!order.sendcloudShipmentId) {
+            notFound(
+                "Cette commande ne possède aucune expédition Sendcloud enregistrée."
+            );
+        }
+
+        const shipmentId = String(order.sendcloudShipmentId);
+
+        // Récupérer les informations actuelles chez Sendcloud.
+        // Cette opération ne crée aucune nouvelle expédition.
+        const response = await sendcloudService.getShipmentById(
+            shipmentId
+        );
+
+        const result =
+            sendcloudShipmentResultService.extract(response);
+
+        // Enregistrer les informations disponibles en protégeant
+        // la commande contre les modifications concurrentes.
+        return sequelize.transaction(async (transaction) => {
+            const lockedOrder = await Order.findByPk(Number(orderId), {
+                transaction,
+                lock: transaction.LOCK.UPDATE,
+            });
+
+            if (!lockedOrder) {
+                throw new Error("Commande introuvable.");
+            }
+
+            if (
+                String(lockedOrder.sendcloudShipmentId) !== shipmentId
+            ) {
+                throw new Error(
+                    "L'expédition Sendcloud de cette commande a changé. " +
+                    "Veuillez relancer le rafraîchissement."
+                );
+            }
+
+            // Ne jamais remplacer une information existante par une
+            // valeur vide ou absente de la réponse Sendcloud.
+            if (result.parcelId) {
+                lockedOrder.sendcloudParcelId = result.parcelId;
+            }
+
+            if (result.trackingNumber) {
+                lockedOrder.sendcloudTrackingNumber =
+                    result.trackingNumber;
+            }
+
+            if (result.trackingUrl) {
+                lockedOrder.sendcloudTrackingUrl =
+                    result.trackingUrl;
+            }
+
+            if (result.labelUrl) {
+                lockedOrder.sendcloudLabelUrl = result.labelUrl;
+            }
+
+            await lockedOrder.save({ transaction });
+
+            return {
+                action: "REFRESHED",
+                shipmentId,
+                parcelId:
+                    lockedOrder.sendcloudParcelId ?? null,
+                trackingNumber:
+                    lockedOrder.sendcloudTrackingNumber ?? null,
+                trackingUrl:
+                    lockedOrder.sendcloudTrackingUrl ?? null,
+                labelUrl:
+                    lockedOrder.sendcloudLabelUrl ?? null,
+            };
+        });
+    },
+
     async createForOrder(orderId) {
         if (
             !Number.isSafeInteger(Number(orderId)) ||
@@ -16,8 +108,8 @@ const sendcloudShipmentService = {
             throw new Error("Identifiant de commande invalide.");
         }
 
-        // Mode simulation : prépare et valide l'expédition sans appeler
-        // Sendcloud ni modifier les données de la commande.
+        // Mode simulation : aucune création Sendcloud et aucune
+        // modification de la commande en base de données.
         if (process.env.SENDCLOUD_DRY_RUN === "true") {
             const order = await Order.findByPk(Number(orderId), {
                 include: [
@@ -71,6 +163,7 @@ const sendcloudShipmentService = {
         }
 
         let claimedOrderId;
+        let retryAfterError = false;
 
         // Réserver la tentative pour empêcher deux créations simultanées.
         const reservation = await sequelize.transaction();
@@ -109,14 +202,12 @@ const sendcloudShipmentService = {
                 };
             }
 
+            // Une tentative précédente a échoué.
+            // Il faudra rechercher l'expédition avant toute création.
             if (order.sendcloudStatus === "ERREUR") {
-                throw new Error(
-                    "Une tentative précédente a échoué. Vérifie d'abord " +
-                    "dans Sendcloud si une expédition existe avant de réessayer."
-                );
+                retryAfterError = true;
             }
 
-            // La Lettre Suivie reste hors du processus Sendcloud.
             const method = await ShippingMethod.findByPk(
                 order.shippingMethodId,
                 { transaction: reservation }
@@ -126,6 +217,7 @@ const sendcloudShipmentService = {
                 throw new Error("Mode de livraison introuvable.");
             }
 
+            // La Lettre Suivie reste hors du processus Sendcloud.
             if (method.name === "Lettre Suivie") {
                 await reservation.commit();
 
@@ -171,9 +263,96 @@ const sendcloudShipmentService = {
 
             const payload = sendcloudShipmentPayloadService.build(order);
 
-            // ATTENTION : cet appel crée réellement une expédition.
-            const response =
-                await sendcloudService.createShipment(payload);
+            let response;
+
+            if (retryAfterError) {
+                // Avant une nouvelle création, rechercher une éventuelle
+                // expédition issue de la tentative précédente.
+                const lookupResponse =
+                    await sendcloudService.getShipmentByReference(
+                        payload.external_reference_id
+                    );
+
+                // On accepte uniquement une liste identifiable.
+                // Une réponse inconnue doit bloquer la création.
+                const shipments = Array.isArray(lookupResponse?.data)
+                    ? lookupResponse.data
+                    : Array.isArray(lookupResponse?.data?.shipments)
+                        ? lookupResponse.data.shipments
+                        : null;
+
+                if (!shipments) {
+                    throw new Error(
+                        "Réponse Sendcloud inattendue lors de la recherche. " +
+                        "Aucune nouvelle expédition n'a été créée."
+                    );
+                }
+
+                if (shipments.length > 1) {
+                    throw new Error(
+                        "Plusieurs expéditions correspondent à cette " +
+                        "référence. Vérification manuelle nécessaire."
+                    );
+                }
+
+                if (shipments.length === 1) {
+                    // Réutiliser l'expédition existante.
+                    response = { data: shipments[0] };
+
+                    console.log(
+                        `[Sendcloud] Expédition existante retrouvée pour ` +
+                        `${payload.external_reference_id}.`
+                    );
+                }
+            }
+
+            if (!response) {
+                try {
+                    response = await sendcloudService.createShipment(payload);
+                } catch (error) {
+                    // La référence externe existe peut-être déjà chez Sendcloud.
+                    if (error.status !== 409) {
+                        throw error;
+                    }
+
+                    const lookupResponse =
+                        await sendcloudService.getShipmentByReference(
+                            payload.external_reference_id
+                        );
+
+                    const shipments = Array.isArray(lookupResponse?.data)
+                        ? lookupResponse.data
+                        : Array.isArray(lookupResponse?.data?.shipments)
+                            ? lookupResponse.data.shipments
+                            : null;
+
+                    if (!shipments) {
+                        throw new Error(
+                            "Sendcloud signale une référence déjà utilisée, " +
+                            "mais la réponse de recherche est invalide. " +
+                            "Aucune nouvelle création ne sera tentée."
+                        );
+                    }
+
+                    if (shipments.length !== 1) {
+                        throw new Error(
+                            shipments.length === 0
+                                ? "Sendcloud signale une référence déjà utilisée, " +
+                                "mais aucune expédition n'a été retrouvée. " +
+                                "Vérification manuelle nécessaire."
+                                : "Plusieurs expéditions correspondent à cette " +
+                                "référence. Vérification manuelle nécessaire."
+                        );
+                    }
+
+                    response = { data: shipments[0] };
+
+                    console.log(
+                        `[Sendcloud] Expédition récupérée après HTTP 409 : ` +
+                        `${payload.external_reference_id}.`
+                    );
+                }
+            }
 
             const result =
                 sendcloudShipmentResultService.extract(response);
@@ -207,13 +386,13 @@ const sendcloudShipmentService = {
             });
 
             return {
-                action: "CREATED",
+                action: retryAfterError ? "RECOVERED_OR_CREATED" : "CREATED",
                 shipmentId: result.shipmentId,
             };
         } catch (error) {
             // Une erreur Sendcloud ne doit pas annuler le paiement.
-            // Une erreur réseau peut survenir après la création effective
-            // d'une expédition chez Sendcloud.
+            // On conserve l'état ERREUR pour permettre une vérification
+            // avant toute nouvelle tentative.
             try {
                 await Order.update(
                     {

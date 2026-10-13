@@ -9,6 +9,7 @@ import { ShippingRate } from '../models/Shipping_Rate.js';
 import { Op } from 'sequelize';
 import { badRequest, notFound, conflict, forbidden } from '../utils/error.js';
 import sendcloudService from '../services/sendcloudService.js';
+import sendcloudShipmentService from '../services/sendcloudShipmentService.js';
 
 function generateOrderNumber() {
     const date = new Date();
@@ -45,6 +46,25 @@ const orderController = {
         });
 
         res.status(200).json(orders);
+    },
+
+    // Rafraîchir les informations d'une expédition Sendcloud existante
+    async refreshSendcloudShipment(req, res) {
+        const orderId = Number(req.params.id);
+
+        if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+            badRequest("Identifiant de commande invalide.");
+        }
+
+        const result =
+            await sendcloudShipmentService.refreshShipmentForOrder(
+                orderId
+            );
+
+        res.status(200).json({
+            message: "Informations de livraison actualisées.",
+            ...result,
+        });
     },
 
     async showMyOrders(req, res) {

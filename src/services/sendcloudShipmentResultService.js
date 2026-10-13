@@ -38,18 +38,18 @@ const sendcloudShipmentResultService = {
                     : null,
 
             trackingNumber:
-                parcel?.tracking_number ??
-                shipment.tracking_number ??
+                parcel?.tracking_number ||
+                shipment.tracking_number ||
                 null,
 
             trackingUrl:
-                parcel?.tracking_url ??
-                shipment.tracking_url ??
+                parcel?.tracking_url ||
+                shipment.tracking_url ||
                 null,
 
             labelUrl:
-                label?.link ??
-                label?.url ??
+                label?.link ||
+                label?.url ||
                 null,
         };
     },

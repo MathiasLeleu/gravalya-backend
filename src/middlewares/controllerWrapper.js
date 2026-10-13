@@ -13,8 +13,6 @@ function cw(controller) {
 
 // Middleware de gestion d'erreurs
 function errorHandler(err, req, res, next) {
-    console.error("💥 Erreur non gérée :", err);
-
     // Si c'est une de nos erreurs personnalisées
     if (err instanceof AppError) {
         return res.status(err.statusCode).json({
@@ -26,6 +24,9 @@ function errorHandler(err, req, res, next) {
             })
         });
     }
+
+    // Erreurs innatendues uniquement
+    console.error("💥 Erreur non gérée :", err);
 
     // Pour les erreurs non gérées
     res.status(500).json({

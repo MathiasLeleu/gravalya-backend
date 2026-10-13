@@ -42,6 +42,7 @@ router.delete('/users/:id', authMiddleware, cw(userController.deleteUser)); // A
 
 // ORDER
 router.get('/orders', authMiddleware, adminMiddleware, cw(orderController.showAllOrders)); // ADMIN
+router.post("/admin/orders/:id/sendcloud/refresh", authMiddleware, adminMiddleware, cw(orderController.refreshSendcloudShipment));
 router.get('/orders/me', authMiddleware, cw(orderController.showMyOrders)); // ORDER OWNER
 router.get('/orders/:id', authMiddleware, cw(orderController.showOneOrder)); // ADMIN + ORDER OWNER
 router.post('/orders', validate(createOrderSchema), cw(orderController.createOrder));

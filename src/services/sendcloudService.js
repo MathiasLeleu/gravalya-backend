@@ -6,7 +6,7 @@ const sendcloudService = {
         ).toString("base64");
 
         const response = await fetch(
-            "https://panel.sendcloud.sc/api/v3/shipments/announce",
+            "https://panel.sendcloud.sc/api/v3/shipments",
             {
                 method: "POST",
                 headers: {
@@ -33,6 +33,105 @@ const sendcloudService = {
                 data.message ||
                 data.detail ||
                 `Erreur Sendcloud lors de la création de l'expédition (HTTP ${response.status}).`
+            );
+
+            error.status = response.status;
+            error.details = data;
+
+            throw error;
+        }
+
+        return data;
+    },
+
+    async getShipmentByReference(externalReferenceId) {
+        const credentials = Buffer.from(
+            `${process.env.SENDCLOUD_PUBLIC_KEY}:${process.env.SENDCLOUD_PRIVATE_KEY}`
+        ).toString("base64");
+
+        const params = new URLSearchParams({
+            external_reference_id: externalReferenceId,
+        });
+
+        const response = await fetch(
+            `https://panel.sendcloud.sc/api/v3/shipments?${params.toString()}`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Basic ${credentials}`,
+                    Accept: "application/json",
+                },
+            }
+        );
+
+        const responseText = await response.text();
+
+        let data;
+
+        try {
+            data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            const error = new Error(
+                data.message ||
+                data.detail ||
+                `Erreur Sendcloud lors de la recherche d'expédition (HTTP ${response.status}).`
+            );
+
+            error.status = response.status;
+            error.details = data;
+
+            throw error;
+        }
+
+        return data;
+    },
+    
+    async getShipmentById(shipmentId) {
+        if (
+            shipmentId === undefined ||
+            shipmentId === null ||
+            String(shipmentId).trim() === ""
+        ) {
+            throw new Error(
+                "Identifiant d'expédition Sendcloud invalide."
+            );
+        }
+
+        const credentials = Buffer.from(
+            `${process.env.SENDCLOUD_PUBLIC_KEY}:${process.env.SENDCLOUD_PRIVATE_KEY}`
+        ).toString("base64");
+
+        const response = await fetch(
+            `https://panel.sendcloud.sc/api/v3/shipments/${encodeURIComponent(String(shipmentId))}`,
+            {
+                method: "GET",
+                headers: {
+                    Authorization: `Basic ${credentials}`,
+                    Accept: "application/json",
+                },
+            }
+        );
+
+        const responseText = await response.text();
+
+        let data;
+
+        try {
+            data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            const error = new Error(
+                data.message ||
+                data.detail ||
+                data.errors?.[0]?.detail ||
+                `Erreur Sendcloud lors de la récupération de l'expédition (HTTP ${response.status}).`
             );
 
             error.status = response.status;
