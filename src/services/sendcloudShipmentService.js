@@ -1,9 +1,6 @@
 
 import { Order } from "../models/Order.js";
-import { OrderLine } from "../models/Order_Line.js";
-import { Product } from "../models/Product.js";
 import { ShippingMethod } from "../models/Shipping_Method.js";
-import { OrderRelayPoint } from "../models/Order_Relay_Point.js";
 import { sequelize } from "../models/connection.js";
 
 import sendcloudService from "./sendcloudService.js";
@@ -12,8 +9,65 @@ import sendcloudShipmentResultService from "./sendcloudShipmentResultService.js"
 
 const sendcloudShipmentService = {
     async createForOrder(orderId) {
-        if (!Number.isSafeInteger(Number(orderId)) || Number(orderId) <= 0) {
+        if (
+            !Number.isSafeInteger(Number(orderId)) ||
+            Number(orderId) <= 0
+        ) {
             throw new Error("Identifiant de commande invalide.");
+        }
+
+        // Mode simulation : prépare et valide l'expédition sans appeler
+        // Sendcloud ni modifier les données de la commande.
+        if (process.env.SENDCLOUD_DRY_RUN === "true") {
+            const order = await Order.findByPk(Number(orderId), {
+                include: [
+                    {
+                        association: "orderLines",
+                        include: [{ association: "product" }],
+                    },
+                    { association: "shippingMethod" },
+                    { association: "orderRelayPoint" },
+                ],
+            });
+
+            if (!order) {
+                throw new Error("Commande introuvable.");
+            }
+
+            if (order.statut !== "CONFIRMEE") {
+                throw new Error(
+                    "Seule une commande confirmée peut être expédiée."
+                );
+            }
+
+            if (order.sendcloudShipmentId) {
+                return {
+                    action: "IGNORE",
+                    reason: "EXPEDITION_DEJA_ENREGISTREE",
+                };
+            }
+
+            if (order.shippingMethod?.name === "Lettre Suivie") {
+                return {
+                    action: "IGNORE",
+                    reason: "LETTRE_SUIVIE",
+                };
+            }
+
+            const payload = sendcloudShipmentPayloadService.build(order);
+
+            console.log(
+                `[Sendcloud DRY RUN] Commande ${order.orderNumber} : ` +
+                "payload valide, aucune expédition créée."
+            );
+
+            return {
+                action: "DRY_RUN",
+                orderId: order.id,
+                externalReference: payload.external_reference_id,
+                shippingOptionCode:
+                    payload.ship_with.properties.shipping_option_code,
+            };
         }
 
         let claimedOrderId;
@@ -110,17 +164,19 @@ const sendcloudShipmentService = {
             });
 
             if (!order) {
-                throw new Error("Commande introuvable après réservation.");
+                throw new Error(
+                    "Commande introuvable après réservation."
+                );
             }
 
             const payload = sendcloudShipmentPayloadService.build(order);
 
-            // Cet appel crée réellement une expédition.
-            // Ne pas exécuter cette méthode sur une commande de test payée
-            // tant que les tests d'intégration ne sont pas autorisés.
-            const response = await sendcloudService.createShipment(payload);
+            // ATTENTION : cet appel crée réellement une expédition.
+            const response =
+                await sendcloudService.createShipment(payload);
 
-            const result = sendcloudShipmentResultService.extract(response);
+            const result =
+                sendcloudShipmentResultService.extract(response);
 
             await sequelize.transaction(async (transaction) => {
                 const lockedOrder = await Order.findByPk(claimedOrderId, {
@@ -155,9 +211,9 @@ const sendcloudShipmentService = {
                 shipmentId: result.shipmentId,
             };
         } catch (error) {
-            // Ne pas modifier le statut de paiement de la commande.
-            // Une erreur réseau peut être survenue après la création
-            // effective de l'expédition chez Sendcloud.
+            // Une erreur Sendcloud ne doit pas annuler le paiement.
+            // Une erreur réseau peut survenir après la création effective
+            // d'une expédition chez Sendcloud.
             try {
                 await Order.update(
                     {
