@@ -74,7 +74,7 @@ Order.init(
             allowNull: false,
             defaultValue: "NON_CREEE",
             validate: {
-                isIn: [["NON_CREEE", "EN_COURS", "CREEE", "ERREUR"]],
+                isIn: [["NON_CREEE", "EN_COURS", "CREEE", "ERREUR", "DRY_RUN"]],
             },
         },
         sendcloudShipmentId: {
