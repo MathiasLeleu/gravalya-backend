@@ -67,6 +67,22 @@ const orderController = {
         });
     },
 
+    // Relancer la création d'une expédition Sendcloud après un échec
+    async retrySendcloudShipment(req, res) {
+        const orderId = Number(req.params.id);
+
+        if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+            badRequest("Identifiant de commande invalide.");
+        }
+
+        const result = await sendcloudShipmentService.retryForOrder(orderId);
+
+        return res.status(200).json({
+            message: "Traitement de la relance Sendcloud effectué.",
+            result,
+        });
+    },
+
     async showMyOrders(req, res) {
         const user = await User.findByPk(req.user.id);
 

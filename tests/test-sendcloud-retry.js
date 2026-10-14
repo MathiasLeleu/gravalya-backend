@@ -58,6 +58,7 @@ const state = {
     createBehavior: "network-error",
     refreshBehavior: "ready",
     refreshResponse: null,
+    orderMissing: false,
     order: structuredClone(initialOrder),
 };
 
@@ -86,6 +87,7 @@ function resetState({
     refreshBehavior = "ready",
     refreshResponse = null,
     existingOrderValues = {},
+    orderMissing = false,
 } = {}) {
     state.createCalls = 0;
     state.lookupCalls = 0;
@@ -95,6 +97,7 @@ function resetState({
     state.createBehavior = createBehavior;
     state.refreshBehavior = refreshBehavior;
     state.refreshResponse = refreshResponse;
+    state.orderMissing = orderMissing;
 
     state.order = {
         ...structuredClone(initialOrder),
@@ -132,6 +135,10 @@ const makeOrderInstance = () => {
 
 const orderModel = {
     async findByPk() {
+        if (state.orderMissing) {
+            return null;
+        }
+
         return makeOrderInstance();
     },
 
@@ -574,5 +581,141 @@ test(
         console.log(
             "✅ Une erreur Sendcloud ne déclenche aucune création.",
         );
+    },
+);
+
+// --------------------------------------------------
+// TESTS DE RELANCE MANUELLE
+// --------------------------------------------------
+
+test(
+    "la relance refuse une commande inexistante",
+    async () => {
+        resetState({
+            orderMissing: true,
+        });
+
+        await assert.rejects(
+            service.retryForOrder(999),
+            /Commande introuvable/,
+        );
+
+        assert.equal(state.lookupCalls, 0);
+        assert.equal(state.createCalls, 0);
+    },
+);
+
+test(
+    "la relance refuse une commande non confirmée",
+    async () => {
+        resetState({
+            existingOrderValues: {
+                statut: "EN_ATTENTE",
+            },
+        });
+
+        await assert.rejects(
+            service.retryForOrder(999),
+            /commande confirmée/i,
+        );
+
+        assert.equal(state.lookupCalls, 0);
+        assert.equal(state.createCalls, 0);
+    },
+);
+
+test(
+    "la relance ignore une expédition déjà enregistrée",
+    async () => {
+        resetState({
+            sendcloudStatus: "ERREUR",
+            existingOrderValues: {
+                sendcloudShipmentId: "654321",
+            },
+        });
+
+        const result = await service.retryForOrder(999);
+
+        assert.equal(result.action, "IGNORE");
+        assert.equal(
+            result.reason,
+            "EXPEDITION_DEJA_ENREGISTREE",
+        );
+
+        assert.equal(state.lookupCalls, 0);
+        assert.equal(state.createCalls, 0);
+    },
+);
+
+test(
+    "la relance refuse une commande qui n'est pas en erreur",
+    async () => {
+        resetState({
+            sendcloudStatus: null,
+        });
+
+        await assert.rejects(
+            service.retryForOrder(999),
+            /expédition en erreur/i,
+        );
+
+        assert.equal(state.lookupCalls, 0);
+        assert.equal(state.createCalls, 0);
+    },
+);
+
+test(
+    "la relance récupère une expédition existante sans doublon",
+    async () => {
+        resetState({
+            sendcloudStatus: "ERREUR",
+            lookupBehavior: "found",
+        });
+
+        const result = await service.retryForOrder(999);
+
+        assert.equal(result.shipmentId, "654321");
+        assert.equal(state.lookupCalls, 1);
+        assert.equal(state.createCalls, 0);
+
+        assert.equal(state.order.sendcloudStatus, "CREEE");
+        assert.equal(state.order.sendcloudShipmentId, "654321");
+    },
+);
+
+test(
+    "la relance en DRY_RUN valide le payload sans modifier la commande",
+    async () => {
+        const previousDryRun = process.env.SENDCLOUD_DRY_RUN;
+
+        process.env.SENDCLOUD_DRY_RUN = "true";
+
+        try {
+            resetState({
+                sendcloudStatus: "ERREUR",
+            });
+
+            const result = await service.retryForOrder(999);
+
+            assert.equal(result.action, "DRY_RUN");
+            assert.equal(result.orderId, 999);
+            assert.ok(result.externalReference);
+            assert.ok(result.shippingOptionCode);
+
+            // Aucun appel réel à Sendcloud.
+            assert.equal(state.lookupCalls, 0);
+            assert.equal(state.createCalls, 0);
+
+            // La commande simulée reste inchangée en base.
+            assert.equal(state.order.sendcloudStatus, "ERREUR");
+            assert.equal(state.order.sendcloudShipmentId, null);
+            assert.equal(state.order.sendcloudError, null);
+        } finally {
+            if (previousDryRun === undefined) {
+                delete process.env.SENDCLOUD_DRY_RUN;
+            } else {
+                process.env.SENDCLOUD_DRY_RUN = previousDryRun;
+            }
+        }
     },
 );

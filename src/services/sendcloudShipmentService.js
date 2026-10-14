@@ -3,7 +3,7 @@ import { Order } from "../models/Order.js";
 import { ShippingMethod } from "../models/Shipping_Method.js";
 import { sequelize } from "../models/connection.js";
 
-import { notFound } from "../utils/error.js";
+import { notFound, ValidationError } from "../utils/error.js";
 
 import sendcloudService from "./sendcloudService.js";
 import sendcloudShipmentPayloadService from "./sendcloudShipmentPayloadService.js";
@@ -98,6 +98,41 @@ const sendcloudShipmentService = {
                     lockedOrder.sendcloudLabelUrl ?? null,
             };
         });
+    },
+
+    async retryForOrder(orderId) {
+        const id = Number(orderId);
+
+        if (!Number.isSafeInteger(id) || id <= 0) {
+            throw new ValidationError("Identifiant de commande invalide.");
+        }
+
+        const order = await Order.findByPk(id);
+
+        if (!order) {
+            throw new ValidationError("Commande introuvable.");
+        }
+
+        if (order.statut !== "CONFIRMEE") {
+            throw new ValidationError(
+                "Seule une commande confirmée peut être relancée."
+            );
+        }
+
+        if (order.sendcloudShipmentId) {
+            return {
+                action: "IGNORE",
+                reason: "EXPEDITION_DEJA_ENREGISTREE",
+            };
+        }
+
+        if (order.sendcloudStatus !== "ERREUR") {
+            throw new ValidationError(
+                "Seule une expédition en erreur peut être relancée."
+            );
+        }
+
+        return this.createForOrder(id);
     },
 
     async createForOrder(orderId) {
