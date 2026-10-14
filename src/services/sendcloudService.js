@@ -197,16 +197,37 @@ const sendcloudService = {
             }
         );
 
-        const data = await response.json();
+        const responseText = await response.text();
+
+        let data;
+
+        try {
+            data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+            data = { rawResponse: responseText };
+        }
 
         if (!response.ok) {
-            throw new Error(
+            console.error("Erreur options Sendcloud :", {
+                status: response.status,
+                details: data,
+            });
+
+            const error = new Error(
                 data.message ||
-                "Impossible de récupérer les options de livraison Sendcloud."
+                data.detail ||
+                data.errors?.[0]?.detail ||
+                `Impossible de récupérer les options de livraison Sendcloud (HTTP ${response.status}).`
             );
+
+            error.status = response.status;
+            error.details = data;
+
+            throw error;
         }
-        
+
         return data;
+
     },
     
     async getServicePoints({
