@@ -56,6 +56,16 @@ Product.init(
                 min: 0,
             },
         },
+        madeToOrder: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
+        customizationOptions: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: {},
+        },
         active: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

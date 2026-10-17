@@ -96,7 +96,10 @@ const stripeWebhookController = {
                     for (const line of orderLines) {
                         await Product.increment("stockQuantity", {
                             by: Number(line.quantity),
-                            where: { id: line.productId },
+                            where: {
+                                id: line.productId,
+                                madeToOrder: false,
+                            },
                             transaction: t,
                         });
                     }

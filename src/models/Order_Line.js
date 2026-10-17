@@ -5,6 +5,11 @@ export class OrderLine extends Model {}
 
 OrderLine.init(
     {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true,
+        },
         orderId: {
             type: DataTypes.INTEGER,
             allowNull: false,
@@ -33,6 +38,11 @@ OrderLine.init(
             validate: {
                 min: 0,
             },
+        },
+        customization: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: {},
         },  
     },
     {

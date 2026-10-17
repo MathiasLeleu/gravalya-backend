@@ -1,5 +1,41 @@
 import joi from 'joi';
 
+
+const customizationOptionsSchema = joi.object({
+    colors: joi.array()
+        .items(
+            joi.string()
+                .trim()
+                .min(1)
+                .max(50)
+        )
+        .unique()
+        .max(20),
+
+    text: joi.object({
+        enabled: joi.boolean().required(),
+
+        label: joi.string()
+            .trim()
+            .min(1)
+            .max(100),
+
+        required: joi.boolean()
+            .default(false),
+
+        maxLength: joi.number()
+            .integer()
+            .min(1)
+            .max(200)
+            .default(30),
+
+        placeholder: joi.string()
+            .max(150)
+            .allow('')
+    })
+});
+
+
 const createProductSchema = joi.object({
     name: joi.string()
         .min(2)
@@ -102,6 +138,18 @@ const createProductSchema = joi.object({
             'number.integer': 'L\'identifiant de la catégorie doit être un nombre entier',
             'number.positive': 'L\'identifiant de la catégorie doit être positif',
             'any.required': 'La catégorie est requise'
+        }),
+
+    madeToOrder: joi.boolean()
+        .default(false)
+        .messages({
+            'boolean.base': 'Le mode de fabrication doit être un booléen'
+        }),
+
+    customizationOptions: customizationOptionsSchema
+        .default({})
+        .messages({
+            'object.base': 'Les options de personnalisation doivent être un objet'
         })
 });
 
@@ -195,8 +243,16 @@ const updateProductSchema = joi.object({
             'number.base': 'L\'identifiant de la catégorie doit être un nombre',
             'number.integer': 'L\'identifiant de la catégorie doit être un nombre entier',
             'number.positive': 'L\'identifiant de la catégorie doit être positif'
-        })
+        }),
+    madeToOrder: joi.boolean()
+        .messages({
+            'boolean.base': 'Le mode de fabrication doit être un booléen'
+        }),
 
+    customizationOptions: customizationOptionsSchema
+        .messages({
+            'object.base': 'Les options de personnalisation doivent être un objet'
+        })
 }).min(1).messages({
     'object.min': 'Au moins un champ doit être fourni pour la mise à jour'
 });

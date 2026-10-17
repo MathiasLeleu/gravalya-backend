@@ -182,11 +182,11 @@ const sendcloudShipmentService = {
             }
 
             const payload = sendcloudShipmentPayloadService.build(order);
-
+/*
             order.sendcloudStatus = "DRY_RUN";
             order.sendcloudError = null;
             await order.save();
-
+*/
             console.log(
                 `[Sendcloud DRY RUN] Commande ${order.orderNumber} : payload valide, aucune expédition créée.`
             );

@@ -34,7 +34,16 @@ const createOrderSchema = joi.object({
                         'number.min': 'La quantité doit être au moins de {#limit}',
                         'number.max': 'La quantité ne peut pas dépasser {#limit}',
                         'any.required': 'La quantité est requise'
-                    })
+                    }),
+                customization: joi.object({
+                    color: joi.string()
+                        .trim()
+                        .max(50),
+
+                    text: joi.string()
+                        .trim()
+                        .max(200)
+                }).default({})
             })
         )
         .min(1)

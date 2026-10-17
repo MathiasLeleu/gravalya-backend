@@ -37,6 +37,88 @@ const ORDER_INCLUDES = [
     { association: 'user', attributes: { exclude: ['password'] } },
 ];
 
+
+function validateProductCustomization(product, customization) {
+    if (
+        customization === null ||
+        typeof customization !== "object" ||
+        Array.isArray(customization)
+    ) {
+        badRequest(
+            `Les personnalisations du produit "${product.name}" sont invalides.`
+        );
+    }
+
+    const allowedKeys = ["color", "text"];
+
+    if (Object.keys(customization).some(
+        (key) => !allowedKeys.includes(key)
+    )) {
+        badRequest(
+            `Les personnalisations du produit "${product.name}" contiennent des champs invalides.`
+        );
+    }
+
+    const options = product.customizationOptions || {};
+    const normalized = {};
+
+    // Validation de la couleur
+    const colors = Array.isArray(options.colors)
+        ? options.colors
+        : [];
+
+    if (colors.length > 0) {
+        if (
+            typeof customization.color !== "string" ||
+            !colors.includes(customization.color.trim())
+        ) {
+            badRequest(
+                `Veuillez choisir une couleur valide pour "${product.name}".`
+            );
+        }
+
+        normalized.color = customization.color.trim();
+    } else if (customization.color !== undefined) {
+        badRequest(
+            `Le produit "${product.name}" ne propose pas de choix de couleur.`
+        );
+    }
+
+    // Validation du texte personnalisé
+    const textOptions = options.text;
+    const textEnabled = textOptions?.enabled === true;
+    const text = customization.text;
+
+    if (textEnabled) {
+        const normalizedText =
+            typeof text === "string" ? text.trim() : "";
+
+        if (textOptions.required && !normalizedText) {
+            badRequest(
+                `Le texte personnalisé est requis pour "${product.name}".`
+            );
+        }
+
+        const maxLength = Number(textOptions.maxLength) || 30;
+
+        if (normalizedText.length > maxLength) {
+            badRequest(
+                `Le texte personnalisé de "${product.name}" ne doit pas dépasser ${maxLength} caractères.`
+            );
+        }
+
+        if (normalizedText) {
+            normalized.text = normalizedText;
+        }
+    } else if (text !== undefined && text !== "") {
+        badRequest(
+            `Le produit "${product.name}" ne propose pas de personnalisation par texte.`
+        );
+    }
+
+    return normalized;
+}
+
 const orderController = {
 
     // Get all orders
@@ -192,11 +274,14 @@ const orderController = {
             badRequest("Les informations de livraison sont incomplètes.");
         }
 
-        // Validation des produits et refus des doublons
-        const productQuantities = new Map();
+        
+        // Validation des produits et des lignes de commande
+        const normalizedItems = [];
+        const seenLines = new Set();
 
         for (const item of items) {
             if (
+                !item ||
                 !Number.isInteger(item.productId) ||
                 item.productId < 1 ||
                 !Number.isInteger(item.quantity) ||
@@ -206,19 +291,40 @@ const orderController = {
                 badRequest("Produit ou quantité invalide.");
             }
 
-            if (productQuantities.has(item.productId)) {
+            const customization = item.customization ?? {};
+
+            if (
+                customization === null ||
+                typeof customization !== "object" ||
+                Array.isArray(customization)
+            ) {
+                badRequest("Les personnalisations du produit sont invalides.");
+            }
+
+            const normalizedCustomization = {
+                ...customization,
+            };
+
+            const lineKey = JSON.stringify([
+                item.productId,
+                normalizedCustomization.color ?? null,
+                normalizedCustomization.text ?? null,
+            ]);
+
+            if (seenLines.has(lineKey)) {
                 badRequest(
-                    `Le produit (id: ${item.productId}) apparaît plusieurs fois dans la commande.`
+                    "Une même personnalisation apparaît plusieurs fois dans la commande."
                 );
             }
 
-            productQuantities.set(item.productId, item.quantity);
-        }
+            seenLines.add(lineKey);
 
-        const normalizedItems = Array.from(
-            productQuantities,
-            ([productId, quantity]) => ({ productId, quantity })
-        );
+            normalizedItems.push({
+                productId: item.productId,
+                quantity: item.quantity,
+                customization: normalizedCustomization,
+            });
+        }
 
         // Création de la commande dans une transaction
         let isReplay = false;
@@ -311,7 +417,10 @@ const orderController = {
                     );
                 }
 
-                if (product.stockQuantity < item.quantity) {
+                if (
+                    !product.madeToOrder &&
+                    product.stockQuantity < item.quantity
+                ) {
                     conflict(
                         `Stock insuffisant pour "${product.name}" (disponible : ${product.stockQuantity}, demandé : ${item.quantity}).`
                     );
@@ -319,6 +428,11 @@ const orderController = {
 
                 const unitPriceCents = Math.round(Number(product.price) * 100);
                 const unitWeight = Number(product.weight);
+
+                const customization = validateProductCustomization(
+                    product,
+                    item.customization ?? {}
+                );
 
                 amountCents += unitPriceCents * item.quantity;
                 totalWeight += unitWeight * item.quantity;
@@ -328,6 +442,7 @@ const orderController = {
                     quantity: item.quantity,
                     unitPrice: product.price,
                     unitWeight,
+                    customization,
                 });
             }
 
@@ -510,14 +625,16 @@ const orderController = {
                 { transaction: t }
             );
 
-            // Décrémentation du stock
+            // Décrémentation du stock des produits en stock uniquement
             for (const item of normalizedItems) {
                 const product = productMap.get(item.productId);
 
-                await product.decrement("stockQuantity", {
-                    by: item.quantity,
-                    transaction: t,
-                });
+                if (!product.madeToOrder) {
+                    await product.decrement("stockQuantity", {
+                        by: item.quantity,
+                        transaction: t,
+                    });
+                }
             }
 
             // Enregistrement du point relais
@@ -737,7 +854,10 @@ const orderController = {
                     for (const line of orderWithLines.orderLines) {
                         await Product.increment("stockQuantity", {
                             by: line.quantity,
-                            where: { id: line.productId },
+                            where: {
+                                id: line.productId,
+                                madeToOrder: false,
+                            },
                             transaction: t,
                         });
                     }
@@ -841,7 +961,10 @@ const orderController = {
                 for (const line of order.orderLines) {
                     await Product.increment("stockQuantity", {
                         by: line.quantity,
-                        where: { id: line.productId },
+                        where: {
+                            id: line.productId,
+                            madeToOrder: false,
+                        },
                         transaction: t,
                     });
                 }

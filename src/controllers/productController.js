@@ -89,13 +89,38 @@ const productController = {
 
     // Create a new product
     async createProduct(req, res) {
-        const { name, description, price, weight, height, length, width, stockQuantity, categoryId } = req.body;
+        const {
+            name,
+            description,
+            price,
+            weight,
+            height,
+            length,
+            width,
+            stockQuantity,
+            categoryId,
+            madeToOrder = false,
+            customizationOptions = {}
+        } = req.body;
 
-        if (!name || !description || !price || !weight || !height || !length || !width || !stockQuantity || !categoryId) {
-            badRequest('Tous les champs sont requis.');
+        if (
+            name === undefined || name === null ||
+            description === undefined || description === null ||
+            price === undefined || price === null ||
+            weight === undefined || weight === null ||
+            height === undefined || height === null ||
+            length === undefined || length === null ||
+            width === undefined || width === null ||
+            stockQuantity === undefined || stockQuantity === null ||
+            categoryId === undefined || categoryId === null
+        ) {
+            badRequest('Tous les champs requis doivent être renseignés.');
         }
 
-        const existingName = await Product.findOne({ where: { name: name } });
+        const existingName = await Product.findOne({
+            where: { name }
+        });
+
         if (existingName) {
             conflict('Ce nom de produit est déjà utilisé.');
         }
@@ -109,7 +134,9 @@ const productController = {
             length,
             width,
             stockQuantity,
-            categoryId
+            categoryId,
+            madeToOrder,
+            customizationOptions
         });
 
         res.status(201).json(newProduct);
