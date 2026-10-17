@@ -469,14 +469,14 @@ describe("Webhook Stripe — expiration de session", () => {
 
 
 describe("Webhook Stripe — intégration Sendcloud simulée", () => {
-    it("appelle Sendcloud une seule fois lors de la confirmation initiale", async () => {
+        it("ne crée pas automatiquement une expédition lors de la confirmation initiale", async () => {
         prepareTest();
 
         const res = await sendWebhook();
 
         assert.equal(res.statusCode, 200);
         assert.equal(state.order.statut, "CONFIRMEE");
-        assert.deepEqual(sendcloudState.calls, [24]);
+        assert.deepEqual(sendcloudState.calls, []);
     });
 
     it("ne rappelle pas Sendcloud pour un paiement déjà confirmé", async () => {
@@ -491,7 +491,7 @@ describe("Webhook Stripe — intégration Sendcloud simulée", () => {
         assert.deepEqual(sendcloudState.calls, []);
     });
 
-    it("conserve la confirmation du paiement si Sendcloud échoue", async () => {
+    it("confirme le paiement sans appeler Sendcloud, même si le service échouerait", async () => {
         prepareTest();
         sendcloudState.shouldFail = true;
 
@@ -499,6 +499,6 @@ describe("Webhook Stripe — intégration Sendcloud simulée", () => {
 
         assert.equal(res.statusCode, 200);
         assert.equal(state.order.statut, "CONFIRMEE");
-        assert.deepEqual(sendcloudState.calls, [24]);
+        assert.deepEqual(sendcloudState.calls, []);
     });
 });

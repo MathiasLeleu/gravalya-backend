@@ -4,7 +4,7 @@ import { OrderLine } from "../models/Order_Line.js";
 import { Product } from "../models/Product.js";
 import { sequelize } from "../models/connection.js";
 import { stripe } from "../services/stripeService.js";
-import sendcloudShipmentService from "../services/sendcloudShipmentService.js";
+// import sendcloudShipmentService from "../services/sendcloudShipmentService.js";
 
 const stripeWebhookController = {
     async handleWebhook(req, res) {
@@ -288,7 +288,7 @@ const stripeWebhookController = {
                     );
                 });
             }
-
+/*
             // Création de l'expédition uniquement lors de la confirmation
             // initiale de la commande. Une erreur Sendcloud ne doit pas
             // remettre en cause un paiement déjà confirmé.
@@ -310,7 +310,7 @@ const stripeWebhookController = {
                     );
                 }
             }
-
+*/
             return res.status(200).json({ received: true });
         } catch (error) {
             console.error(
