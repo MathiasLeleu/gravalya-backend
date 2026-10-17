@@ -21,6 +21,13 @@ app.use(cors({
     origin: ["http://localhost:5173"]
 }));
 
+// HEALTH CHECK
+app.get("/health", (_req, res) => {
+    res.status(200).json({
+        status: "ok"
+    });
+});
+
 app.post(
     "/stripe/webhook",
     express.raw({ type: "application/json" }),
