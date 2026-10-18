@@ -9,6 +9,7 @@
     "dev": "node --watch index.js",
     "create": "node ./src/seeding/createTables.js",
     "seed": "node ./src/seeding/seedTables.js",
+    "init:production": "node ./src/seeding/initializeProduction.js",
     "reset": "npm run create && npm run seed",
     "test": "node --experimental-test-module-mocks --test"
   },
