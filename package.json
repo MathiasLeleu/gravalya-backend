@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node index.js",
     "dev": "node --watch index.js",
     "create": "node ./src/seeding/createTables.js",
     "seed": "node ./src/seeding/seedTables.js",
