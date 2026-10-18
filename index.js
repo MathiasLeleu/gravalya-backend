@@ -18,7 +18,10 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 
 app.use(cors({
-    origin: ["http://localhost:5173"]
+    origin: [
+        "http://localhost:5173"
+        "https://gravelya-studio.netlify.app"
+    ]
 }));
 
 // HEALTH CHECK
