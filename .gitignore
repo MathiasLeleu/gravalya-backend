@@ -1,3 +1,7 @@
 node_modules/
 
 .env
+
+# Fichiers locaux de test et images non versionnées
+/uploads/products/2/
+/uploads/temp/testproduitperso.png
