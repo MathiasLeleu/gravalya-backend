@@ -274,7 +274,6 @@ const orderController = {
             badRequest("Les informations de livraison sont incomplètes.");
         }
 
-        
         // Validation des produits et des lignes de commande
         const normalizedItems = [];
         const seenLines = new Set();
