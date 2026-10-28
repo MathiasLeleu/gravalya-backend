@@ -9,6 +9,10 @@ Picture.init(
             type: DataTypes.STRING(255),
             allowNull: false,
         },
+        cloudinaryPublicId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+        },
         alt: {
             type: DataTypes.STRING(255),
             allowNull: false,

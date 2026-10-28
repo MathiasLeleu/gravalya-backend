@@ -27,6 +27,14 @@ Category.init(
             type: DataTypes.STRING,
             allowNull: false,
         },
+        imagePublicId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+        },
+        bannerPublicId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+        },
     },
     {
         sequelize,
