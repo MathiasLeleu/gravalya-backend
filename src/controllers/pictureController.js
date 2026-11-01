@@ -1,10 +1,10 @@
-
 import { Picture } from "../models/Picture.js";
 import { Product } from "../models/Product.js";
 import { badRequest, notFound } from "../utils/error.js";
 import {
     uploadImage,
     deleteImage,
+    getImageByPublicId,
 } from "../services/cloudinaryService.js";
 
 const pictureController = {
@@ -44,9 +44,7 @@ const pictureController = {
         const { url, alt, isMain } = req.body;
 
         if (!url || !alt?.trim()) {
-            badRequest(
-                "L'URL et le texte alternatif sont requis."
-            );
+            badRequest("L'URL et le texte alternatif sont requis.");
         }
 
         const product = await Product.findByPk(productId);
@@ -76,6 +74,94 @@ const pictureController = {
                 return Picture.create(
                     {
                         url,
+                        alt: alt.trim(),
+                        isMain: shouldBeMain,
+                        productId,
+                    },
+                    { transaction }
+                );
+            }
+        );
+
+        res.status(201).json(newPicture);
+    },
+
+    // Attach an existing Cloudinary library image to a product
+    async attachCloudinaryPicture(req, res) {
+        const productId = parseInt(req.params.id, 10);
+        const { cloudinaryPublicId, alt, isMain } = req.body;
+
+        if (!cloudinaryPublicId || !alt?.trim()) {
+            badRequest(
+                "L'identifiant Cloudinary et le texte alternatif sont requis."
+            );
+        }
+
+        const product = await Product.findByPk(productId);
+
+        if (!product) {
+            notFound("Produit non trouvé.");
+        }
+
+        let cloudinaryImage;
+
+        try {
+            cloudinaryImage = await getImageByPublicId(cloudinaryPublicId);
+        } catch (error) {
+            if (
+                error.http_code === 404 ||
+                error.error?.http_code === 404
+            ) {
+                notFound("Image Cloudinary introuvable.");
+            }
+
+            throw error;
+        }
+
+        const assetFolder = cloudinaryImage.asset_folder || "";
+        const isAllowedFolder =
+            assetFolder === "produits" ||
+            assetFolder.startsWith("produits/");
+
+        if (!isAllowedFolder) {
+            badRequest(
+                "Cette image ne provient pas de la bibliothèque des produits."
+            );
+        }
+
+        const existingPicture = await Picture.findOne({
+            where: {
+                productId,
+                cloudinaryPublicId: cloudinaryImage.public_id,
+            },
+        });
+
+        if (existingPicture) {
+            badRequest("Cette image est déjà associée à ce produit.");
+        }
+
+        const shouldBeMain =
+            isMain === true || isMain === "true";
+
+        const newPicture = await Picture.sequelize.transaction(
+            async (transaction) => {
+                if (shouldBeMain) {
+                    await Picture.update(
+                        { isMain: false },
+                        {
+                            where: {
+                                productId,
+                                isMain: true,
+                            },
+                            transaction,
+                        }
+                    );
+                }
+
+                return Picture.create(
+                    {
+                        url: cloudinaryImage.secure_url,
+                        cloudinaryPublicId: cloudinaryImage.public_id,
                         alt: alt.trim(),
                         isMain: shouldBeMain,
                         productId,
@@ -205,8 +291,6 @@ const pictureController = {
                     : shouldBeMain,
             };
 
-            // A manually changed URL no longer identifies the
-            // previously stored Cloudinary asset.
             if (url !== undefined && url !== picture.url) {
                 updates.cloudinaryPublicId = null;
             }
@@ -217,7 +301,7 @@ const pictureController = {
         res.status(200).json(picture);
     },
 
-    // Delete a picture
+    // Delete a picture association
     async deletePicture(req, res) {
         const productId = parseInt(req.params.id, 10);
         const pictureId = parseInt(req.params.pictureId, 10);
@@ -233,35 +317,12 @@ const pictureController = {
             notFound("Image non trouvée.");
         }
 
-        const publicId = picture.cloudinaryPublicId;
-
-        // Remove the database record first. Legacy local pictures
-        // have no Cloudinary public ID and are left untouched.
+        // Never delete the Cloudinary asset here.
+        // A library image may be shared by several products.
         await picture.destroy();
 
-        if (publicId) {
-            try {
-                const result = await deleteImage(publicId);
-
-                if (result?.result !== "ok" && result?.result !== "not found") {
-                    console.error(
-                        "Cloudinary n'a pas confirmé la suppression de l'image :",
-                        publicId,
-                        result?.result
-                    );
-                }
-            } catch (error) {
-                // Keep the API deletion successful, but log the remote
-                // cleanup failure so it can be investigated.
-                console.error(
-                    "Erreur lors de la suppression de l'image Cloudinary :",
-                    error.message
-                );
-            }
-        }
-
         res.status(200).json({
-            message: "Image supprimée avec succès.",
+            message: "Image supprimée du produit avec succès.",
         });
     },
 };

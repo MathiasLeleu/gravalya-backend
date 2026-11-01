@@ -10,6 +10,7 @@ import { authController } from './controllers/authController.js'
 import { relayPointController } from "./controllers/relayPointController.js";
 import { shippingOptionController } from "./controllers/shippingOptionController.js";
 import { paymentController } from "./controllers/paymentController.js";
+import { cloudinaryController } from './controllers/cloudinaryController.js';
 
 import { validate } from './middlewares/validation.js'
 import { cw } from './middlewares/controllerWrapper.js'
@@ -24,7 +25,7 @@ import { createProductSchema, updateProductSchema } from './schemas/productSchem
 import { createCategorySchema, updateCategorySchema } from './schemas/categorySchema.js'
 import { createShippingMethodSchema, updateShippingMethodSchema } from './schemas/shippingMethodSchema.js'
 import { createShippingRateSchema, updateShippingRateSchema } from './schemas/shippingRateSchema.js'
-import { createPictureSchema, updatePictureSchema } from './schemas/pictureSchema.js'
+import { createPictureSchema, updatePictureSchema, attachCloudinaryPictureSchema } from './schemas/pictureSchema.js'
 import { loginSchema } from './schemas/authSchema.js'
 
 const router = Router();
@@ -94,9 +95,13 @@ router.patch('/shipping-rates/:id', authMiddleware, adminMiddleware, validate(up
 router.get('/products/:id/pictures', cw(pictureController.showProductPictures));
 router.get('/pictures/main', cw(pictureController.showMainPictures));
 router.post('/products/:id/pictures', authMiddleware, adminMiddleware, validate(createPictureSchema), cw(pictureController.createPicture)); // ADMIN
+router.post('/products/:id/pictures/cloudinary', authMiddleware, adminMiddleware, validate(attachCloudinaryPictureSchema), cw(pictureController.attachCloudinaryPicture));
 router.post('/products/:id/pictures/upload', authMiddleware, adminMiddleware, uploadPicture.single('picture'), cw(pictureController.uploadPicture)); // ADMIN
 router.patch('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, validate(updatePictureSchema), cw(pictureController.updatePicture)); // ADMIN
 router.delete('/products/:id/pictures/:pictureId', authMiddleware, adminMiddleware, cw(pictureController.deletePicture)) ; // ADMIN
+
+// CLOUDINARY
+router.get("/cloudinary/images", authMiddleware, adminMiddleware, cw(cloudinaryController.showImages)); // ADMIN
 
 // RELAY POINTS 
 router.get("/relay-points",cw(relayPointController.showServicePoints));

@@ -7,6 +7,11 @@ const createPictureSchema = joi.object({
         'any.required': "L'URL de l'image est requise"
     }),
 
+    cloudinaryPublicId: joi.string().min(1).max(255).optional().messages({
+        'string.min': "L'identifiant Cloudinary doit contenir au moins {#limit} caractère",
+        'string.max': "L'identifiant Cloudinary ne doit pas dépasser {#limit} caractères",
+    }),
+
     alt: joi.string().min(1).max(255).required().messages({
         'string.min': "Le texte alternatif de l'image doit contenir au moins {#limit} caractère",
         'string.max': "Le texte alternatif de l'image ne doit pas dépasser {#limit} caractères",
@@ -34,4 +39,22 @@ const updatePictureSchema = joi.object({
     })
 }).min(1);
 
-export { createPictureSchema, updatePictureSchema };
+const attachCloudinaryPictureSchema = joi.object({
+    cloudinaryPublicId: joi.string().min(1).max(255).required().messages({
+        'string.min': "L'identifiant Cloudinary doit contenir au moins {#limit} caractère",
+        'string.max': "L'identifiant Cloudinary ne doit pas dépasser {#limit} caractères",
+        'any.required': "L'identifiant Cloudinary est requis"
+    }),
+
+    alt: joi.string().min(1).max(255).required().messages({
+        'string.min': "Le texte alternatif de l'image doit contenir au moins {#limit} caractère",
+        'string.max': "Le texte alternatif de l'image ne doit pas dépasser {#limit} caractères",
+        'any.required': "Le texte alternatif de l'image est requis"
+    }),
+
+    isMain: joi.boolean().default(false).messages({
+        'boolean.base': "Le champ isMain doit être un booléen"
+    })
+});
+
+export { createPictureSchema, updatePictureSchema, attachCloudinaryPictureSchema };

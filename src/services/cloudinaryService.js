@@ -74,4 +74,41 @@ const deleteImage = async (publicId) => {
     });
 };
 
-export { cloudinary, uploadImage, deleteImage };
+/**
+ * Récupère les images existantes dans un dossier Cloudinary
+ * et tous ses sous-dossiers.
+ */
+const listImages = async ({
+    folder,
+    nextCursor,
+    maxResults = 30,
+}) => {
+    const expression = [
+        "resource_type:image",
+        "type:upload",
+        `asset_folder:${folder}/*`,
+    ].join(" AND ");
+
+    return cloudinary.search
+        .expression(expression)
+        .sort_by("created_at", "desc")
+        .max_results(maxResults)
+        .next_cursor(nextCursor || null)
+        .execute();
+};
+
+/**
+ * Récupère une image Cloudinary à partir de son public_id.
+ */
+const getImageByPublicId = async (publicId) => {
+    if (!publicId) {
+        throw new Error("L'identifiant Cloudinary est requis.");
+    }
+
+    return cloudinary.api.resource(publicId, {
+        resource_type: "image",
+        type: "upload",
+    });
+};
+
+export { cloudinary, uploadImage, deleteImage, listImages, getImageByPublicId };
