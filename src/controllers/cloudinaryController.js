@@ -10,13 +10,22 @@ const cloudinaryController = {
     async showImages(req, res) {
         const folder = req.query.folder;
         const nextCursor = req.query.nextCursor;
+        const search = req.query.search?.trim() || "";
 
         if (!ALLOWED_FOLDERS.includes(folder)) {
             badRequest("Dossier Cloudinary non autorisé.");
         }
 
+        if (
+            search.length > 100 ||
+            (search && !/^[\p{L}\p{N}_.-]+$/u.test(search))
+        ) {
+            badRequest("Le terme de recherche est invalide.");
+        }
+
         const result = await listImages({
             folder,
+            search,
             nextCursor,
             maxResults: 30,
         });

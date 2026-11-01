@@ -80,14 +80,21 @@ const deleteImage = async (publicId) => {
  */
 const listImages = async ({
     folder,
+    search,
     nextCursor,
     maxResults = 30,
 }) => {
-    const expression = [
+    const expressionParts = [
         "resource_type:image",
         "type:upload",
         `asset_folder:${folder}/*`,
-    ].join(" AND ");
+    ];
+
+    if (search) {
+        expressionParts.push(`public_id:${search}*`);
+    }
+
+    const expression = expressionParts.join(" AND ");
 
     return cloudinary.search
         .expression(expression)
