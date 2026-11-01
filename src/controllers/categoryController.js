@@ -1,41 +1,78 @@
-import { Category } from '../models/Category.js'
-import { Product } from '../models/Product.js'
-import { badRequest, notFound, conflict } from '../utils/error.js'
-import fs from "fs";
-import path from "path";
+import { Category } from "../models/Category.js";
+import { Product } from "../models/Product.js";
+import {
+    badRequest,
+    notFound,
+    conflict,
+} from "../utils/error.js";
+import {
+    uploadImage,
+    deleteImage,
+    getImageByPublicId,
+} from "../services/cloudinaryService.js";
+import { Op } from "sequelize";
+
+const getCategoryCloudinaryImage = async (publicId) => {
+    if (!publicId) {
+        return null;
+    }
+
+    let image;
+
+    try {
+        image = await getImageByPublicId(publicId);
+    } catch (error) {
+        if (error.http_code === 404) {
+            badRequest("L'image sélectionnée est introuvable sur Cloudinary.");
+        }
+
+        throw error;
+    }
+
+    const folder = image.asset_folder;
+
+    if (
+        folder !== "categories" &&
+        !folder?.startsWith("categories/")
+    ) {
+        badRequest("L'image sélectionnée n'appartient pas à la bibliothèque des catégories.");
+    }
+
+    return image;
+};
 
 const categoryController = {
-
-    // Get all categories 
+    // Get all categories
     async showAllCategories(req, res) {
         const categories = await Category.findAll({
             include: [
                 {
-                    association: 'products',
-                    attributes: ['id']
-                }
-            ]
+                    association: "products",
+                    attributes: ["id"],
+                },
+            ],
         });
 
-        res.status(200).json(categories)
+        res.status(200).json(categories);
     },
 
     // Get one category
     async showOneCategory(req, res) {
-        const categoryId = parseInt(req.params.id);
+        const categoryId = parseInt(req.params.id, 10);
+
         const category = await Category.findByPk(categoryId, {
-        include: [
-            {
-                association: 'products'
-            }
-        ]
+            include: [
+                {
+                    association: "products",
+                },
+            ],
         });
 
         if (!category) {
             notFound("Catégorie non trouvée.");
         }
 
-        res.status(200).json(category)
+        res.status(200).json(category);
     },
 
     // Create a new category
@@ -45,81 +82,91 @@ const categoryController = {
         const image = req.files?.image?.[0];
         const banner = req.files?.banner?.[0];
 
-        if (!image || !banner) {
+        const imageCloudinaryPublicId = req.body.imageCloudinaryPublicId;
+        const bannerCloudinaryPublicId = req.body.bannerCloudinaryPublicId;
 
-            if (image?.path) {
-                fs.unlinkSync(image.path);
-            }
-
-            if (banner?.path) {
-                fs.unlinkSync(banner.path);
-            }
-
+        if ((!image && !imageCloudinaryPublicId) ||
+            (!banner && !bannerCloudinaryPublicId)) {
             badRequest(
                 "L'image et la bannière de la catégorie sont requises."
             );
         }
 
         const existingName = await Category.findOne({
-            where: { name }
+            where: { name },
         });
 
         if (existingName) {
-
-            if (image.path) {
-                fs.unlinkSync(image.path);
-            }
-
-            if (banner.path) {
-                fs.unlinkSync(banner.path);
-            }
-
-            conflict('Ce nom de catégorie est déjà utilisé.');
+            conflict("Ce nom de catégorie est déjà utilisé.");
         }
 
         const existingSlug = await Category.findOne({
-            where: { slug }
+            where: { slug },
         });
 
         if (existingSlug) {
-
-            if (image.path) {
-                fs.unlinkSync(image.path);
-            }
-
-            if (banner.path) {
-                fs.unlinkSync(banner.path);
-            }
-
-            conflict('Ce slug de catégorie est déjà utilisé.');
+            conflict("Ce slug de catégorie est déjà utilisé.");
         }
 
-        const imageUrl =
-            `/uploads/categories/${slug}/${image.filename}`;
-
-        const bannerUrl =
-            `/uploads/categories/${slug}/${banner.filename}`;
+        let uploadedImage;
+        let uploadedBanner;
 
         try {
+            const selectedImage = imageCloudinaryPublicId
+                ? await getCategoryCloudinaryImage(imageCloudinaryPublicId)
+                : null;
+
+            const selectedBanner = bannerCloudinaryPublicId
+                ? await getCategoryCloudinaryImage(bannerCloudinaryPublicId)
+                : null;
+
+            if (image && selectedImage) {
+                badRequest("Choisissez une seule source pour l'image principale.");
+            }
+
+            if (banner && selectedBanner) {
+                badRequest("Choisissez une seule source pour la bannière.");
+            }
+
+            if (image) {
+                uploadedImage = await uploadImage(image.buffer, {
+                    folder: `gravelya/categories/${slug}`,
+                });
+            }
+
+            if (banner) {
+                uploadedBanner = await uploadImage(banner.buffer, {
+                    folder: `gravelya/categories/${slug}`,
+                });
+            }
 
             const newCategory = await Category.create({
                 name,
                 slug,
                 description,
-                imageUrl,
-                bannerUrl
+                imageUrl: selectedImage?.secure_url ?? uploadedImage?.secure_url,
+                bannerUrl: selectedBanner?.secure_url ?? uploadedBanner?.secure_url,
+                imagePublicId: selectedImage?.public_id ?? uploadedImage?.public_id,
+                bannerPublicId: selectedBanner?.public_id ?? uploadedBanner?.public_id,
             });
 
-            res.status(201).json(newCategory);
+            return res.status(201).json(newCategory);
 
         } catch (error) {
+            const uploadedAssets = [
+                uploadedImage?.public_id,
+                uploadedBanner?.public_id,
+            ].filter(Boolean);
 
-            if (image.path) {
-                fs.unlinkSync(image.path);
-            }
-
-            if (banner.path) {
-                fs.unlinkSync(banner.path);
+            for (const publicId of uploadedAssets) {
+                try {
+                    await deleteImage(publicId);
+                } catch (cleanupError) {
+                    console.error(
+                        "Impossible de nettoyer une image Cloudinary après l'échec de création :",
+                        cleanupError.message
+                    );
+                }
             }
 
             throw error;
@@ -128,7 +175,7 @@ const categoryController = {
 
     // Update an existing category
     async updateCategory(req, res) {
-        const categoryId = parseInt(req.params.id);
+        const categoryId = parseInt(req.params.id, 10);
 
         const category = await Category.findByPk(categoryId);
 
@@ -141,250 +188,186 @@ const categoryController = {
         const image = req.files?.image?.[0];
         const banner = req.files?.banner?.[0];
 
+        const imageCloudinaryPublicId = req.body.imageCloudinaryPublicId;
+        const bannerCloudinaryPublicId = req.body.bannerCloudinaryPublicId;
+
         if (
             name === undefined &&
             slug === undefined &&
             description === undefined &&
             !image &&
-            !banner
+            !banner &&
+            !imageCloudinaryPublicId &&
+            !bannerCloudinaryPublicId
         ) {
             badRequest(
                 "Au moins un champ doit être fourni pour la mise à jour."
             );
         }
 
-        // Vérification du nom
         if (name && name !== category.name) {
             const existingName = await Category.findOne({
-                where: { name }
+                where: { name },
             });
 
             if (existingName && existingName.id !== categoryId) {
-                if (image?.path) {
-                    fs.unlinkSync(image.path);
-                }
-
-                if (banner?.path) {
-                    fs.unlinkSync(banner.path);
-                }
-
                 conflict("Ce nom de catégorie est déjà utilisé.");
             }
         }
 
-        // Vérification du slug
         if (slug && slug !== category.slug) {
             const existingSlug = await Category.findOne({
-                where: { slug }
+                where: { slug },
             });
 
             if (existingSlug && existingSlug.id !== categoryId) {
-                if (image?.path) {
-                    fs.unlinkSync(image.path);
-                }
-
-                if (banner?.path) {
-                    fs.unlinkSync(banner.path);
-                }
-
                 conflict("Ce slug de catégorie est déjà utilisé.");
             }
         }
 
-        const oldSlug = category.slug;
-        const newSlug = slug || oldSlug;
+        if (image && imageCloudinaryPublicId) {
+            badRequest("Choisissez une seule source pour l'image principale.");
+        }
 
-        const oldCategoryPath = path.join(
-            process.cwd(),
-            "uploads",
-            "categories",
-            oldSlug
-        );
+        if (banner && bannerCloudinaryPublicId) {
+            badRequest("Choisissez une seule source pour la bannière.");
+        }
 
-        const newCategoryPath = path.join(
-            process.cwd(),
-            "uploads",
-            "categories",
-            newSlug
-        );
+        let uploadedImage;
+        let uploadedBanner;
 
-        const temporaryPath = path.join(
-            process.cwd(),
-            "uploads",
-            "categories",
-            ".tmp",
-            String(categoryId)
-        );
+        const previousImagePublicId = category.imagePublicId;
+        const previousBannerPublicId = category.bannerPublicId;
+
+        let selectedImage;
+        let selectedBanner;
 
         try {
-
-            /*
-            * Si le slug change, on déplace le dossier
-            * de l'ancienne catégorie vers le nouveau.
-            */
-            if (oldSlug !== newSlug) {
-
-                fs.mkdirSync(newCategoryPath, {
-                    recursive: true
-                });
-
-                if (fs.existsSync(oldCategoryPath)) {
-
-                    const existingFiles = fs.readdirSync(oldCategoryPath);
-
-                    for (const fileName of existingFiles) {
-
-                        const oldFilePath = path.join(
-                            oldCategoryPath,
-                            fileName
-                        );
-
-                        const newFilePath = path.join(
-                            newCategoryPath,
-                            fileName
-                        );
-
-                        fs.renameSync(
-                            oldFilePath,
-                            newFilePath
-                        );
-                    }
-
-                    fs.rmSync(oldCategoryPath, {
-                        recursive: true,
-                        force: true
-                    });
-                }
-            } else {
-
-                fs.mkdirSync(newCategoryPath, {
-                    recursive: true
-                });
+            if (imageCloudinaryPublicId) {
+                selectedImage = await getCategoryCloudinaryImage(
+                    imageCloudinaryPublicId
+                );
             }
 
-            /*
-            * Remplacement de l'image
-            */
-            let imageUrl = category.imageUrl;
+            if (bannerCloudinaryPublicId) {
+                selectedBanner = await getCategoryCloudinaryImage(
+                    bannerCloudinaryPublicId
+                );
+            }
+
+            const newSlug = slug ?? category.slug;
 
             if (image) {
-
-                const oldImagePath = category.imageUrl
-                    ? path.join(
-                        process.cwd(),
-                        category.imageUrl
-                    )
-                    : null;
-
-                if (
-                    oldImagePath &&
-                    fs.existsSync(oldImagePath)
-                ) {
-                    fs.unlinkSync(oldImagePath);
-                }
-
-                const newImagePath = path.join(
-                    newCategoryPath,
-                    image.filename
-                );
-
-                fs.renameSync(
-                    image.path,
-                    newImagePath
-                );
-
-                imageUrl =
-                    `/uploads/categories/${newSlug}/${image.filename}`;
-            } else if (oldSlug !== newSlug) {
-
-                imageUrl =
-                    category.imageUrl.replace(
-                        `/categories/${oldSlug}/`,
-                        `/categories/${newSlug}/`
-                    );
+                uploadedImage = await uploadImage(image.buffer, {
+                    folder: `gravelya/categories/${newSlug}`,
+                });
             }
-
-            /*
-            * Remplacement de la bannière
-            */
-            let bannerUrl = category.bannerUrl;
 
             if (banner) {
-
-                const oldBannerPath = category.bannerUrl
-                    ? path.join(
-                        process.cwd(),
-                        category.bannerUrl
-                    )
-                    : null;
-
-                if (
-                    oldBannerPath &&
-                    fs.existsSync(oldBannerPath)
-                ) {
-                    fs.unlinkSync(oldBannerPath);
-                }
-
-                const newBannerPath = path.join(
-                    newCategoryPath,
-                    banner.filename
-                );
-
-                fs.renameSync(
-                    banner.path,
-                    newBannerPath
-                );
-
-                bannerUrl =
-                    `/uploads/categories/${newSlug}/${banner.filename}`;
-            } else if (oldSlug !== newSlug) {
-
-                bannerUrl =
-                    category.bannerUrl.replace(
-                        `/categories/${oldSlug}/`,
-                        `/categories/${newSlug}/`
-                    );
+                uploadedBanner = await uploadImage(banner.buffer, {
+                    folder: `gravelya/categories/${newSlug}`,
+                });
             }
 
-            await category.update({
+            const updates = {
                 name: name ?? category.name,
                 slug: newSlug,
                 description: description ?? category.description,
-                imageUrl,
-                bannerUrl
-            });
+            };
 
-            /*
-            * Suppression du dossier temporaire
-            */
-            if (fs.existsSync(temporaryPath)) {
-                fs.rmSync(temporaryPath, {
-                    recursive: true,
-                    force: true
-                });
+            if (selectedImage) {
+                updates.imageUrl = selectedImage.secure_url;
+                updates.imagePublicId = selectedImage.public_id;
+            } else if (uploadedImage) {
+                updates.imageUrl = uploadedImage.secure_url;
+                updates.imagePublicId = uploadedImage.public_id;
             }
 
-            res.status(200).json(category);
+            if (selectedBanner) {
+                updates.bannerUrl = selectedBanner.secure_url;
+                updates.bannerPublicId = selectedBanner.public_id;
+            } else if (uploadedBanner) {
+                updates.bannerUrl = uploadedBanner.secure_url;
+                updates.bannerPublicId = uploadedBanner.public_id;
+            }
+
+            await category.update(updates);
 
         } catch (error) {
+            const uploadedAssets = [
+                uploadedImage?.public_id,
+                uploadedBanner?.public_id,
+            ].filter(Boolean);
 
-            /*
-            * Nettoyage des fichiers temporaires
-            */
-            if (fs.existsSync(temporaryPath)) {
-                fs.rmSync(temporaryPath, {
-                    recursive: true,
-                    force: true
-                });
+            for (const publicId of uploadedAssets) {
+                try {
+                    await deleteImage(publicId);
+                } catch (cleanupError) {
+                    console.error(
+                        "Impossible de nettoyer une image Cloudinary après l'échec de mise à jour :",
+                        cleanupError.message
+                    );
+                }
             }
 
             throw error;
         }
+
+        // Delete previous Cloudinary images only if they are no longer used.
+        const assetsToDelete = [
+            ...new Set([
+                uploadedImage &&
+                previousImagePublicId !== uploadedImage.public_id
+                    ? previousImagePublicId
+                    : null,
+                uploadedBanner &&
+                previousBannerPublicId !== uploadedBanner.public_id
+                    ? previousBannerPublicId
+                    : null,
+            ].filter(Boolean)),
+        ];
+
+        for (const publicId of assetsToDelete) {
+            const imageStillInUse = await Category.findOne({
+                where: {
+                    [Op.or]: [
+                        { imagePublicId: publicId },
+                        { bannerPublicId: publicId },
+                    ],
+                },
+            });
+
+            if (imageStillInUse) {
+                continue;
+            }
+
+            try {
+                const result = await deleteImage(publicId);
+
+                if (
+                    result?.result !== "ok" &&
+                    result?.result !== "not found"
+                ) {
+                    console.error(
+                        "Cloudinary did not confirm image deletion:",
+                        publicId,
+                        result?.result
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    "Error while deleting an old Cloudinary image:",
+                    error.message
+                );
+            }
+        }
+
+        res.status(200).json(category);
     },
 
     // Delete a category
     async deleteCategory(req, res) {
-        const categoryId = parseInt(req.params.id);
+        const categoryId = parseInt(req.params.id, 10);
 
         const category = await Category.findByPk(categoryId);
 
@@ -394,8 +377,8 @@ const categoryController = {
 
         const product = await Product.findOne({
             where: {
-                categoryId
-            }
+                categoryId,
+            },
         });
 
         if (product) {
@@ -404,32 +387,63 @@ const categoryController = {
             );
         }
 
-        const categoryPath = path.join(
-            process.cwd(),
-            "uploads",
-            "categories",
-            category.slug
-        );
+        const imagePublicId = category.imagePublicId;
+        const bannerPublicId = category.bannerPublicId;
 
-        try {
-            if (fs.existsSync(categoryPath)) {
-                fs.rmSync(categoryPath, {
-                    recursive: true,
-                    force: true
-                });
-            }
+        // Remove the category record first.
+        await category.destroy();
 
-            await category.destroy();
+        // Delete Cloudinary images only if they are
+        // not used by any other category.
+        const assetsToCheck = [
+            ...new Set([imagePublicId, bannerPublicId].filter(Boolean)),
+        ];
 
-            res.status(200).json({
-                message: "Catégorie supprimée avec succès."
+        for (const publicId of assetsToCheck) {
+            const usedByAnotherCategory = await Category.findOne({
+                where: {
+                    id: {
+                        [Op.ne]: categoryId,
+                    },
+                    [Op.or]: [
+                        { imagePublicId: publicId },
+                        { bannerPublicId: publicId },
+                    ],
+                },
             });
 
-        } catch (error) {
-            throw error;
+            if (usedByAnotherCategory) {
+                continue;
+            }
+
+            try {
+                const result = await deleteImage(publicId);
+
+                if (
+                    result?.result !== "ok" &&
+                    result?.result !== "not found"
+                ) {
+                    console.error(
+                        "Cloudinary n'a pas confirmé la suppression de l'image :",
+                        publicId,
+                        result?.result
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    "Erreur lors de la suppression d'une image Cloudinary :",
+                    error.message
+                );
+            }
         }
-    }
 
-}
+        // Legacy local files are not automatically deleted or migrated.
+        // They can be cleaned up separately after a safe migration.
 
-export { categoryController }
+        res.status(200).json({
+            message: "Catégorie supprimée avec succès.",
+        });
+    },
+};
+
+export { categoryController };
