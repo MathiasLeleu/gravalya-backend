@@ -15,7 +15,11 @@ const createCategorySchema = joi.object({
 
     description: joi.string().required().messages({
         'any.required': 'La description de la catégorie est requise'
-    })
+    }),
+
+    imageCloudinaryPublicId: joi.string().allow('').optional(),
+
+    bannerCloudinaryPublicId: joi.string().allow('').optional()
 });
 
 const updateCategorySchema = joi.object({
@@ -33,7 +37,11 @@ const updateCategorySchema = joi.object({
 
     description: joi.string().messages({
         'string.base': 'La description de la catégorie doit être une chaîne de caractères'
-    })
+    }),
+
+    imageCloudinaryPublicId: joi.string().allow('').optional(),
+
+    bannerCloudinaryPublicId: joi.string().allow('').optional()
 }).unknown(false);
 
 export { createCategorySchema, updateCategorySchema };

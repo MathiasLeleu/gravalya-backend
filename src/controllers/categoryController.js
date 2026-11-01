@@ -8,7 +8,38 @@ import {
 import {
     uploadImage,
     deleteImage,
+    getImageByPublicId,
 } from "../services/cloudinaryService.js";
+import { Op } from "sequelize";
+
+const getCategoryCloudinaryImage = async (publicId) => {
+    if (!publicId) {
+        return null;
+    }
+
+    let image;
+
+    try {
+        image = await getImageByPublicId(publicId);
+    } catch (error) {
+        if (error.http_code === 404) {
+            badRequest("L'image sélectionnée est introuvable sur Cloudinary.");
+        }
+
+        throw error;
+    }
+
+    const folder = image.asset_folder;
+
+    if (
+        folder !== "categories" &&
+        !folder?.startsWith("categories/")
+    ) {
+        badRequest("L'image sélectionnée n'appartient pas à la bibliothèque des catégories.");
+    }
+
+    return image;
+};
 
 const categoryController = {
     // Get all categories
@@ -51,7 +82,11 @@ const categoryController = {
         const image = req.files?.image?.[0];
         const banner = req.files?.banner?.[0];
 
-        if (!image || !banner) {
+        const imageCloudinaryPublicId = req.body.imageCloudinaryPublicId;
+        const bannerCloudinaryPublicId = req.body.bannerCloudinaryPublicId;
+
+        if ((!image && !imageCloudinaryPublicId) ||
+            (!banner && !bannerCloudinaryPublicId)) {
             badRequest(
                 "L'image et la bannière de la catégorie sont requises."
             );
@@ -77,25 +112,46 @@ const categoryController = {
         let uploadedBanner;
 
         try {
-            uploadedImage = await uploadImage(image.buffer, {
-                folder: `gravelya/categories/${slug}`,
-            });
+            const selectedImage = imageCloudinaryPublicId
+                ? await getCategoryCloudinaryImage(imageCloudinaryPublicId)
+                : null;
 
-            uploadedBanner = await uploadImage(banner.buffer, {
-                folder: `gravelya/categories/${slug}`,
-            });
+            const selectedBanner = bannerCloudinaryPublicId
+                ? await getCategoryCloudinaryImage(bannerCloudinaryPublicId)
+                : null;
+
+            if (image && selectedImage) {
+                badRequest("Choisissez une seule source pour l'image principale.");
+            }
+
+            if (banner && selectedBanner) {
+                badRequest("Choisissez une seule source pour la bannière.");
+            }
+
+            if (image) {
+                uploadedImage = await uploadImage(image.buffer, {
+                    folder: `gravelya/categories/${slug}`,
+                });
+            }
+
+            if (banner) {
+                uploadedBanner = await uploadImage(banner.buffer, {
+                    folder: `gravelya/categories/${slug}`,
+                });
+            }
 
             const newCategory = await Category.create({
                 name,
                 slug,
                 description,
-                imageUrl: uploadedImage.secure_url,
-                bannerUrl: uploadedBanner.secure_url,
-                imagePublicId: uploadedImage.public_id,
-                bannerPublicId: uploadedBanner.public_id,
+                imageUrl: selectedImage?.secure_url ?? uploadedImage?.secure_url,
+                bannerUrl: selectedBanner?.secure_url ?? uploadedBanner?.secure_url,
+                imagePublicId: selectedImage?.public_id ?? uploadedImage?.public_id,
+                bannerPublicId: selectedBanner?.public_id ?? uploadedBanner?.public_id,
             });
 
             return res.status(201).json(newCategory);
+
         } catch (error) {
             const uploadedAssets = [
                 uploadedImage?.public_id,
@@ -128,15 +184,21 @@ const categoryController = {
         }
 
         const { name, slug, description } = req.body;
+
         const image = req.files?.image?.[0];
         const banner = req.files?.banner?.[0];
+
+        const imageCloudinaryPublicId = req.body.imageCloudinaryPublicId;
+        const bannerCloudinaryPublicId = req.body.bannerCloudinaryPublicId;
 
         if (
             name === undefined &&
             slug === undefined &&
             description === undefined &&
             !image &&
-            !banner
+            !banner &&
+            !imageCloudinaryPublicId &&
+            !bannerCloudinaryPublicId
         ) {
             badRequest(
                 "Au moins un champ doit être fourni pour la mise à jour."
@@ -163,13 +225,36 @@ const categoryController = {
             }
         }
 
+        if (image && imageCloudinaryPublicId) {
+            badRequest("Choisissez une seule source pour l'image principale.");
+        }
+
+        if (banner && bannerCloudinaryPublicId) {
+            badRequest("Choisissez une seule source pour la bannière.");
+        }
+
         let uploadedImage;
         let uploadedBanner;
 
         const previousImagePublicId = category.imagePublicId;
         const previousBannerPublicId = category.bannerPublicId;
 
+        let selectedImage;
+        let selectedBanner;
+
         try {
+            if (imageCloudinaryPublicId) {
+                selectedImage = await getCategoryCloudinaryImage(
+                    imageCloudinaryPublicId
+                );
+            }
+
+            if (bannerCloudinaryPublicId) {
+                selectedBanner = await getCategoryCloudinaryImage(
+                    bannerCloudinaryPublicId
+                );
+            }
+
             const newSlug = slug ?? category.slug;
 
             if (image) {
@@ -190,18 +275,22 @@ const categoryController = {
                 description: description ?? category.description,
             };
 
-            if (uploadedImage) {
+            if (selectedImage) {
+                updates.imageUrl = selectedImage.secure_url;
+                updates.imagePublicId = selectedImage.public_id;
+            } else if (uploadedImage) {
                 updates.imageUrl = uploadedImage.secure_url;
                 updates.imagePublicId = uploadedImage.public_id;
             }
 
-            if (uploadedBanner) {
+            if (selectedBanner) {
+                updates.bannerUrl = selectedBanner.secure_url;
+                updates.bannerPublicId = selectedBanner.public_id;
+            } else if (uploadedBanner) {
                 updates.bannerUrl = uploadedBanner.secure_url;
                 updates.bannerPublicId = uploadedBanner.public_id;
             }
 
-            // Keep existing local URLs unchanged when only the slug
-            // changes. This preserves compatibility with legacy files.
             await category.update(updates);
 
         } catch (error) {
@@ -224,27 +313,34 @@ const categoryController = {
             throw error;
         }
 
-        // Delete replaced Cloudinary assets only after the database
-        // update succeeds. Legacy local files have no public ID.
-        const assetsToDelete = [];
-
-        if (
-            uploadedImage &&
-            previousImagePublicId &&
-            previousImagePublicId !== uploadedImage.public_id
-        ) {
-            assetsToDelete.push(previousImagePublicId);
-        }
-
-        if (
-            uploadedBanner &&
-            previousBannerPublicId &&
-            previousBannerPublicId !== uploadedBanner.public_id
-        ) {
-            assetsToDelete.push(previousBannerPublicId);
-        }
+        // Delete previous Cloudinary images only if they are no longer used.
+        const assetsToDelete = [
+            ...new Set([
+                uploadedImage &&
+                previousImagePublicId !== uploadedImage.public_id
+                    ? previousImagePublicId
+                    : null,
+                uploadedBanner &&
+                previousBannerPublicId !== uploadedBanner.public_id
+                    ? previousBannerPublicId
+                    : null,
+            ].filter(Boolean)),
+        ];
 
         for (const publicId of assetsToDelete) {
+            const imageStillInUse = await Category.findOne({
+                where: {
+                    [Op.or]: [
+                        { imagePublicId: publicId },
+                        { bannerPublicId: publicId },
+                    ],
+                },
+            });
+
+            if (imageStillInUse) {
+                continue;
+            }
+
             try {
                 const result = await deleteImage(publicId);
 
@@ -253,14 +349,14 @@ const categoryController = {
                     result?.result !== "not found"
                 ) {
                     console.error(
-                        "Cloudinary n'a pas confirmé la suppression de l'image :",
+                        "Cloudinary did not confirm image deletion:",
                         publicId,
                         result?.result
                     );
                 }
             } catch (error) {
                 console.error(
-                    "Erreur lors de la suppression d'une ancienne image Cloudinary :",
+                    "Error while deleting an old Cloudinary image:",
                     error.message
                 );
             }
@@ -297,9 +393,29 @@ const categoryController = {
         // Remove the category record first.
         await category.destroy();
 
-        // Clean up Cloudinary assets. A failed remote deletion is logged
-        // without restoring the deleted database record.
-        for (const publicId of [imagePublicId, bannerPublicId].filter(Boolean)) {
+        // Delete Cloudinary images only if they are
+        // not used by any other category.
+        const assetsToCheck = [
+            ...new Set([imagePublicId, bannerPublicId].filter(Boolean)),
+        ];
+
+        for (const publicId of assetsToCheck) {
+            const usedByAnotherCategory = await Category.findOne({
+                where: {
+                    id: {
+                        [Op.ne]: categoryId,
+                    },
+                    [Op.or]: [
+                        { imagePublicId: publicId },
+                        { bannerPublicId: publicId },
+                    ],
+                },
+            });
+
+            if (usedByAnotherCategory) {
+                continue;
+            }
+
             try {
                 const result = await deleteImage(publicId);
 
