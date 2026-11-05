@@ -35,7 +35,7 @@ const authController = {
             process.env.JWT_SECRET,
             {
                 algorithm: 'HS256',
-                expiresIn: '2h'
+                expiresIn: process.env.JWT_EXPIRES_IN || '24h'
             }
         );
 
