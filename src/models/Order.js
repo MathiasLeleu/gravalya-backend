@@ -6,7 +6,7 @@ export class Order extends Model {}
 Order.init(
     {
         statut: {
-            type: DataTypes.ENUM("EN_ATTENTE", "CONFIRMEE", "EXPEDIEE", "LIVREE", "ANNULEE"),
+            type: DataTypes.ENUM("EN_ATTENTE", "PREPARATION", "CONFIRMEE", "EXPEDIEE", "LIVREE", "ANNULEE"),
             allowNull: false,
             defaultValue: "EN_ATTENTE",
         }, 

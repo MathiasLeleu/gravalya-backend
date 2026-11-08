@@ -8,6 +8,7 @@ import { ShippingRate } from './Shipping_Rate.js';
 import { OrderRelayPoint } from './Order_Relay_Point.js';
 import { OrderLine } from './Order_Line.js';
 import { Picture } from './Picture.js';
+import { EmailOutbox } from './Email_Outbox.js';
 
 // One-To-Many relations
 
@@ -123,4 +124,16 @@ Product.belongsToMany(Order, {
     otherKey: 'orderId',
 });
 
-export { User, Order, Product, Category, ShippingMethod, ShippingRate, OrderRelayPoint, OrderLine, Picture, sequelize };
+Order.hasMany(EmailOutbox, {
+    as: 'emailOutboxEvents',
+    foreignKey: 'orderId',
+    onDelete: 'SET NULL',
+});
+
+EmailOutbox.belongsTo(Order, {
+    as: 'order',
+    foreignKey: 'orderId',
+    onDelete: 'SET NULL',
+});
+
+export { User, Order, Product, Category, ShippingMethod, ShippingRate, OrderRelayPoint, OrderLine, Picture, EmailOutbox, sequelize };

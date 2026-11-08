@@ -1,9 +1,9 @@
-
 import { Order } from "../models/Order.js";
 import { OrderLine } from "../models/Order_Line.js";
 import { Product } from "../models/Product.js";
 import { sequelize } from "../models/connection.js";
 import { stripe } from "../services/stripeService.js";
+import { enqueueEmail } from "../services/emailOutboxService.js";
 // import sendcloudShipmentService from "../services/sendcloudShipmentService.js";
 
 const stripeWebhookController = {
@@ -36,10 +36,96 @@ const stripeWebhookController = {
             "checkout.session.completed",
             "checkout.session.async_payment_succeeded",
             "checkout.session.expired",
+            "refund.updated",
+            "refund.failed",
         ];
 
         if (!supportedEvents.includes(event.type)) {
             return res.status(200).json({ received: true });
+        }
+
+        // Suivi des remboursements Stripe différés.
+        if (
+            event.type === "refund.updated" ||
+            event.type === "refund.failed"
+        ) {
+            const refund = event.data.object;
+            const orderId = refund.metadata?.orderId;
+            const sessionId = refund.metadata?.sessionId;
+
+            if (!orderId || !sessionId) {
+                console.warn(
+                    "Métadonnées absentes du remboursement Stripe :",
+                    refund.id
+                );
+                return res.status(200).json({ received: true });
+            }
+
+            try {
+                await sequelize.transaction(async (t) => {
+                    const order = await Order.findByPk(orderId, {
+                        transaction: t,
+                        lock: t.LOCK.UPDATE,
+                    });
+
+                    if (!order || order.stripeSessionId !== sessionId) {
+                        console.warn(
+                            "Remboursement Stripe sans commande correspondante :",
+                            refund.id
+                        );
+                        return;
+                    }
+
+                    if (
+                        order.refundStatus === "REUSSI" ||
+                        order.refundStatus === "ECHEC"
+                    ) {
+                        return;
+                    }
+
+                    order.stripeRefundId = refund.id;
+
+                    if (refund.status === "succeeded") {
+                        order.refundStatus = "REUSSI";
+                        order.refundCompletedAt = new Date();
+                        order.refundError = null;
+
+                        await enqueueEmail({
+                            eventKey: `remboursement-reussi-${order.id}`,
+                            orderId: order.id,
+                            eventType: "REMBOURSEMENT_REUSSI",
+                            recipientEmail: order.customerEmail,
+                            payload: {
+                                orderNumber: order.orderNumber,
+                            },
+                            transaction: t,
+                        });
+                    } else if (
+                        refund.status === "failed" ||
+                        event.type === "refund.failed"
+                    ) {
+                        order.refundStatus = "ECHEC";
+                        order.refundError =
+                            "Stripe indique que le remboursement a échoué.";
+                    } else {
+                        order.refundStatus = "EN_COURS";
+                        order.refundError = null;
+                    }
+
+                    await order.save({ transaction: t });
+                });
+
+                return res.status(200).json({ received: true });
+            } catch (error) {
+                console.error(
+                    "Erreur de suivi du remboursement Stripe :",
+                    error
+                );
+
+                return res.status(500).send(
+                    "Erreur de traitement du remboursement."
+                );
+            }
         }
 
         const session = event.data.object;
@@ -92,6 +178,17 @@ const stripeWebhookController = {
 
                     order.statut = "ANNULEE";
                     await order.save({ transaction: t });
+
+                    await enqueueEmail({
+                        eventKey: `commande-annulee-${order.id}`,
+                        orderId: order.id,
+                        eventType: "COMMANDE_ANNULEE",
+                        recipientEmail: order.customerEmail,
+                        payload: {
+                            orderNumber: order.orderNumber,
+                        },
+                        transaction: t,
+                    });
 
                     for (const line of orderLines) {
                         await Product.increment("stockQuantity", {
@@ -194,7 +291,10 @@ const stripeWebhookController = {
                 // Une commande déjà confirmée ne doit pas être reconfirmée.
                 // Cela empêche un ancien événement Stripe de déclencher
                 // une nouvelle création d'expédition.
-                if (order.statut === "CONFIRMEE") {
+                if (
+                    order.statut === "PREPARATION" ||
+                    order.statut === "CONFIRMEE"
+                ) {
                     return { action: "IGNORE" };
                 }
 
@@ -204,17 +304,28 @@ const stripeWebhookController = {
                     );
                 }
 
-                order.statut = "CONFIRMEE";
+                order.statut = "PREPARATION";
                 order.paidAt = new Date();
 
                 await order.save({ transaction: t });
+
+                await enqueueEmail({
+                    eventKey: `commande-confirmee-${order.id}`,
+                    orderId: order.id,
+                    eventType: "COMMANDE_CONFIRMEE",
+                    recipientEmail: order.customerEmail,
+                    payload: {
+                        orderNumber: order.orderNumber,
+                    },
+                    transaction: t,
+                });
 
                 console.log(
                     `Paiement Stripe confirmé pour la commande ${order.orderNumber}.`
                 );
 
                 return {
-                    action: "CONFIRM",
+                    action: "PREPARATION",
                     orderId: order.id,
                     orderNumber: order.orderNumber,
                 };
@@ -225,6 +336,10 @@ const stripeWebhookController = {
                 const refund = await stripe.refunds.create(
                     {
                         payment_intent: result.paymentIntent,
+                        metadata: {
+                            orderId: String(result.orderId),
+                            sessionId: result.sessionId,
+                        },
                     },
                     {
                         idempotencyKey:
@@ -258,6 +373,17 @@ const stripeWebhookController = {
                         order.refundError = null;
 
                         await order.save({ transaction: t });
+
+                        await enqueueEmail({
+                            eventKey: `remboursement-reussi-${order.id}`,
+                            orderId: order.id,
+                            eventType: "REMBOURSEMENT_REUSSI",
+                            recipientEmail: order.customerEmail,
+                            payload: {
+                                orderNumber: order.orderNumber,
+                            },
+                            transaction: t,
+                        });
 
                         console.log(
                             `Remboursement Stripe réussi pour la commande ${result.orderNumber}.`
@@ -295,7 +421,7 @@ const stripeWebhookController = {
             // Création de l'expédition uniquement lors de la confirmation
             // initiale de la commande. Une erreur Sendcloud ne doit pas
             // remettre en cause un paiement déjà confirmé.
-            if (result.action === "CONFIRM") {
+            if (result.action === "PREPARATION") {
                 try {
                     const shipmentResult =
                         await sendcloudShipmentService.createForOrder(

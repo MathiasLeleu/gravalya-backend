@@ -10,6 +10,8 @@ import { Op } from 'sequelize';
 import { badRequest, notFound, conflict, forbidden } from '../utils/error.js';
 import sendcloudService from '../services/sendcloudService.js';
 import sendcloudShipmentService from '../services/sendcloudShipmentService.js';
+import { enqueueEmail } from "../services/emailOutboxService.js";
+import { stripe } from "../services/stripeService.js";
 
 function generateOrderNumber() {
     const date = new Date();
@@ -860,6 +862,119 @@ const orderController = {
                             transaction: t,
                         });
                     }
+
+                    // Mise en attente de l'email d'annulation
+                    await enqueueEmail({
+                        eventKey: `commande-annulee-${order.id}`,
+                        orderId: order.id,
+                        eventType: "COMMANDE_ANNULEE",
+                        recipientEmail: order.customerEmail,
+                        payload: {
+                            orderNumber: order.orderNumber,
+                        },
+                        transaction: t,
+                    });
+                });
+                } else if (
+                    statut === "CONFIRMEE" &&
+                    previousStatus === "PREPARATION"
+                ) {
+                    await sequelize.transaction(async (t) => {
+                        const [updatedRows] = await Order.update(
+                            { statut: "CONFIRMEE" },
+                            {
+                                where: {
+                                    id: order.id,
+                                    statut: "PREPARATION",
+                                },
+                                transaction: t,
+                            }
+                        );
+
+                        if (updatedRows === 0) {
+                            conflict(
+                                "Cette commande a déjà été modifiée. Actualisez les données."
+                            );
+                        }
+
+                        await enqueueEmail({
+                            eventKey: `commande-confirmee-${order.id}`,
+                            orderId: order.id,
+                            eventType: "COMMANDE_CONFIRMEE",
+                            recipientEmail: order.customerEmail,
+                            payload: {
+                                orderNumber: order.orderNumber,
+                            },
+                            transaction: t,
+                        });
+                    });
+                                } else if (
+                statut === "EXPEDIEE" &&
+                previousStatus === "CONFIRMEE"
+            ) {
+                await sequelize.transaction(async (t) => {
+                    const [updatedRows] = await Order.update(
+                        { statut: "EXPEDIEE" },
+                        {
+                            where: {
+                                id: order.id,
+                                statut: "CONFIRMEE",
+                            },
+                            transaction: t,
+                        }
+                    );
+
+                    if (updatedRows === 0) {
+                        conflict(
+                            "Cette commande a déjà été modifiée. Actualisez les données."
+                        );
+                    }
+
+                    await enqueueEmail({
+                        eventKey: `commande-expediee-${order.id}`,
+                        orderId: order.id,
+                        eventType: "COMMANDE_EXPEDIEE",
+                        recipientEmail: order.customerEmail,
+                        payload: {
+                            orderNumber: order.orderNumber,
+                            trackingNumber: order.sendcloudTrackingNumber,
+                            trackingUrl: order.sendcloudTrackingUrl,
+                        },
+                        transaction: t,
+                    });
+                });
+            } else if (
+                statut === "LIVREE" &&
+                previousStatus === "EXPEDIEE"
+            ) {
+                await sequelize.transaction(async (t) => {
+                    const [updatedRows] = await Order.update(
+                        { statut: "LIVREE" },
+                        {
+                            where: {
+                                id: order.id,
+                                statut: "EXPEDIEE",
+                            },
+                            transaction: t,
+                        }
+                    );
+
+                    if (updatedRows === 0) {
+                        conflict(
+                            "Cette commande a déjà été modifiée. Actualisez les données."
+                        );
+                    }
+
+                    await enqueueEmail({
+                        eventKey: `commande-livree-${order.id}`,
+                        orderId: order.id,
+                        eventType: "COMMANDE_LIVREE",
+                        recipientEmail: order.customerEmail,
+                        payload: {
+                            orderNumber: order.orderNumber,
+                        },
+                        transaction: t,
+                    });
                 });
             } else {
                 await order.save();
@@ -904,76 +1019,249 @@ const orderController = {
         },
 
     // Delete (annuler) an order
-        async deleteOrder(req, res) {
-            const orderId = parseInt(req.params.id);
+    async deleteOrder(req, res) {
+        const orderId = parseInt(req.params.id);
 
-            const order = await Order.findByPk(orderId, {
-                include: [{ association: 'orderLines' }]
+        const order = await Order.findByPk(orderId, {
+            include: [{ association: "orderLines" }],
+        });
+
+        if (!order) {
+            notFound("Commande non trouvée.");
+        }
+
+        const user = await User.findByPk(req.user.id);
+
+        if (!user) {
+            notFound("Utilisateur non trouvé.");
+        }
+
+        // Seul le propriétaire ou un admin peut annuler la commande
+        if (
+            req.user.role !== "admin" &&
+            order.userId !== req.user.id &&
+            order.customerEmail !== user.email
+        ) {
+            forbidden("Vous n'êtes pas autorisé à annuler cette commande.");
+        }
+
+        const previousStatus = order.statut;
+
+        if (!["EN_ATTENTE", "PREPARATION"].includes(previousStatus)) {
+            badRequest(
+                "Impossible d'annuler une commande qui n'est plus en attente ou en préparation."
+            );
+        }
+
+        let paymentIntent = null;
+        let sessionId = null;
+
+        // Vérification du paiement Stripe pour une commande en préparation
+        if (previousStatus === "PREPARATION") {
+            if (!order.stripeSessionId) {
+                badRequest("Aucune session Stripe associée à cette commande.");
+            }
+
+            const session = await stripe.checkout.sessions.retrieve(
+                order.stripeSessionId
+            );
+
+            if (
+                session.payment_status !== "paid" ||
+                !session.payment_intent
+            ) {
+                badRequest("Le paiement Stripe de cette commande n'est pas confirmé.");
+            }
+
+            sessionId = session.id;
+            paymentIntent =
+                typeof session.payment_intent === "string"
+                    ? session.payment_intent
+                    : session.payment_intent.id;
+        }
+
+        // Annulation et restitution du stock dans une transaction SQL
+        await sequelize.transaction(async (t) => {
+            const lockedOrder = await Order.findByPk(orderId, {
+                include: [{ association: "orderLines" }],
+                transaction: t,
+                lock: {
+                    level: t.LOCK.UPDATE,
+                    of: Order,
+                },
             });
 
-            if (!order) {
-                notFound('Commande non trouvée.');
-            }
-
-            const user = await User.findByPk(req.user.id);
-
-            if (!user) {
-                notFound("Utilisateur non trouvé.");
-            }
-
-            // Seul le propriétaire ou un admin peut annuler la commande
             if (
-                req.user.role !== "admin" &&
-                order.userId !== req.user.id &&
-                order.customerEmail !== user.email
+                !lockedOrder ||
+                lockedOrder.statut !== previousStatus ||
+                lockedOrder.stripeSessionId !== order.stripeSessionId
             ) {
-                forbidden(
-                    "Vous n'êtes pas autorisé à annuler cette commande."
+                conflict(
+                    "Cette commande a déjà été modifiée. Actualisez les données."
                 );
             }
 
-            // Seule une commande EN_ATTENTE peut être annulée
-            if (order.statut !== "EN_ATTENTE") {
-                badRequest(
-                    "Impossible d'annuler une commande qui n'est plus en attente."
+            const updateData = {
+                statut: "ANNULEE",
+            };
+
+            if (previousStatus === "PREPARATION") {
+                updateData.refundStatus = "EN_COURS";
+                updateData.refundRequestedAt = new Date();
+                updateData.refundError = null;
+            }
+
+            const [updatedRows] = await Order.update(updateData, {
+                where: {
+                    id: orderId,
+                    statut: previousStatus,
+                },
+                transaction: t,
+            });
+
+            if (updatedRows === 0) {
+                conflict(
+                    "Cette commande a déjà été modifiée et ne peut plus être annulée."
                 );
             }
 
-            await sequelize.transaction(async (t) => {
-                const [updatedRows] = await Order.update(
-                    { statut: "ANNULEE" },
+            for (const line of lockedOrder.orderLines) {
+                await Product.increment("stockQuantity", {
+                    by: line.quantity,
+                    where: {
+                        id: line.productId,
+                        madeToOrder: false,
+                    },
+                    transaction: t,
+                });
+            }
+
+            await enqueueEmail({
+                eventKey: `commande-annulee-${orderId}`,
+                orderId,
+                eventType: "COMMANDE_ANNULEE",
+                recipientEmail: lockedOrder.customerEmail,
+                payload: {
+                    orderNumber: lockedOrder.orderNumber,
+                },
+                transaction: t,
+            });
+        });
+
+        // Le remboursement Stripe est effectué hors transaction SQL
+        if (previousStatus === "PREPARATION") {
+            try {
+                const refund = await stripe.refunds.create(
                     {
-                        where: {
-                            id: order.id,
-                            statut: "EN_ATTENTE",
+                        payment_intent: paymentIntent,
+                        metadata: {
+                            orderId: String(orderId),
+                            sessionId,
                         },
-                        transaction: t,
+                    },
+                    {
+                        idempotencyKey:
+                            `refund-cancelled-order-${orderId}-${sessionId}`,
                     }
                 );
 
-                if (updatedRows === 0) {
-                    conflict(
-                        "Cette commande a déjà été modifiée et ne peut plus être annulée."
+                await sequelize.transaction(async (t) => {
+                    const lockedOrder = await Order.findByPk(orderId, {
+                        transaction: t,
+                        lock: t.LOCK.UPDATE,
+                    });
+
+                    if (
+                        !lockedOrder ||
+                        lockedOrder.stripeSessionId !== sessionId
+                    ) {
+                        conflict(
+                            "La session Stripe ne correspond plus à la commande."
+                        );
+                    }
+
+                    lockedOrder.stripeRefundId = refund.id;
+
+                    if (refund.status === "succeeded") {
+                        lockedOrder.refundStatus = "REUSSI";
+                        lockedOrder.refundCompletedAt = new Date();
+                        lockedOrder.refundError = null;
+
+                        await enqueueEmail({
+                            eventKey: `remboursement-reussi-${orderId}`,
+                            orderId,
+                            eventType: "REMBOURSEMENT_REUSSI",
+                            recipientEmail: lockedOrder.customerEmail,
+                            payload: {
+                                orderNumber: lockedOrder.orderNumber,
+                            },
+                            transaction: t,
+                        });
+                    } else if (refund.status === "failed") {
+                        lockedOrder.refundStatus = "ECHEC";
+                        lockedOrder.refundError =
+                            "Stripe indique que le remboursement a échoué.";
+                    } else {
+                        lockedOrder.refundStatus = "EN_COURS";
+                        lockedOrder.refundError = null;
+                    }
+
+                    await lockedOrder.save({ transaction: t });
+                });
+
+                if (refund.status === "succeeded") {
+                    return res.status(200).json({
+                        message: "Commande annulée et remboursement effectué avec succès.",
+                    });
+                }
+
+                if (refund.status === "failed") {
+                    return res.status(200).json({
+                        message: "Commande annulée, mais le remboursement Stripe a échoué. Une intervention est nécessaire.",
+                    });
+                }
+
+                return res.status(202).json({
+                    message: "Commande annulée. Le remboursement Stripe est en cours de traitement.",
+                });
+            } catch (error) {
+                console.error(
+                    `Erreur de remboursement Stripe pour la commande ${orderId} :`,
+                    error
+                );
+
+                try {
+                    await Order.update(
+                        {
+                            refundError: String(
+                                error.message || error
+                            ).slice(0, 5000),
+                        },
+                        {
+                            where: {
+                                id: orderId,
+                                stripeSessionId: sessionId,
+                                refundStatus: "EN_COURS",
+                            },
+                        }
+                    );
+                } catch (trackingError) {
+                    console.error(
+                        "Impossible d'enregistrer l'erreur de remboursement :",
+                        trackingError
                     );
                 }
 
-                for (const line of order.orderLines) {
-                    await Product.increment("stockQuantity", {
-                        by: line.quantity,
-                        where: {
-                            id: line.productId,
-                            madeToOrder: false,
-                        },
-                        transaction: t,
-                    });
-                }
-            });
+                return res.status(202).json({
+                    message: "Commande annulée. Le remboursement nécessite un suivi.",
+                });
+            }
+        }
 
-            res.status(200).json({
-                message: 'Commande annulée avec succès.'
-            });
-        },
-
+        return res.status(200).json({
+            message: "Commande annulée avec succès.",
+        });
+    },
 };
 
 export { orderController };

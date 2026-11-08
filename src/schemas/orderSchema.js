@@ -230,6 +230,7 @@ const updateOrderSchema = joi.object({
     statut: joi.string()
         .valid(
             'EN_ATTENTE',
+            'PREPARATION',
             'CONFIRMEE',
             'EXPEDIEE',
             'LIVREE',

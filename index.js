@@ -11,6 +11,8 @@ import { stripeWebhookController } from "./src/controllers/stripeWebhookControll
 
 import { errorHandler, notFoundHandler } from "./src/middlewares/controllerWrapper.js"
 
+import { startEmailOutboxWorker } from "./src/services/emailOutboxWorker.js";
+
 if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET n\'est pas configuré.');
 }
@@ -53,4 +55,5 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     console.log(`🚀 Server listening on port ${PORT}`);
+    startEmailOutboxWorker();
 });
