@@ -67,6 +67,24 @@ mock.module(new URL("../src/models/Product.js", import.meta.url).href, {
     exports: { Product },
 });
 
+const emailOutboxState = {
+    calls: [],
+};
+
+const enqueueEmail = async (params) => {
+    emailOutboxState.calls.push(params);
+
+    return {
+        email: null,
+        created: true,
+    };
+};
+
+mock.module(
+    new URL("../src/services/emailOutboxService.js", import.meta.url).href,
+    { exports: { enqueueEmail } },
+);
+
 mock.module(
     new URL("../src/models/connection.js", import.meta.url).href,
     { exports: { sequelize } },
@@ -227,7 +245,7 @@ describe("Webhook Stripe — validation du paiement", () => {
         const res = await sendWebhook();
 
         assert.equal(res.statusCode, 200);
-        assert.equal(state.order.statut, "CONFIRMEE");
+        assert.equal(state.order.statut, "PREPARATION");
         assert.ok(state.order.paidAt instanceof Date);
         assert.equal(state.saveCalls, 1);
         assert.equal(state.stockCalls, 0);
@@ -475,7 +493,7 @@ describe("Webhook Stripe — intégration Sendcloud simulée", () => {
         const res = await sendWebhook();
 
         assert.equal(res.statusCode, 200);
-        assert.equal(state.order.statut, "CONFIRMEE");
+        assert.equal(state.order.statut, "PREPARATION");
         assert.deepEqual(sendcloudState.calls, []);
     });
 
@@ -498,7 +516,7 @@ describe("Webhook Stripe — intégration Sendcloud simulée", () => {
         const res = await sendWebhook();
 
         assert.equal(res.statusCode, 200);
-        assert.equal(state.order.statut, "CONFIRMEE");
+        assert.equal(state.order.statut, "PREPARATION");
         assert.deepEqual(sendcloudState.calls, []);
     });
 });
