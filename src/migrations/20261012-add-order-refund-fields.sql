@@ -7,9 +7,9 @@ BEGIN
         FROM pg_type t
         JOIN pg_namespace n ON n.oid = t.typnamespace
         WHERE n.nspname = 'public'
-          AND t.typname = 'enum_orders_refundStatus'
+          AND t.typname = 'enum_orders_refund_status'
     ) THEN
-        CREATE TYPE public."enum_orders_refundStatus"
+        CREATE TYPE public."enum_orders_refund_status"
         AS ENUM ('AUCUN', 'EN_COURS', 'REUSSI', 'ECHEC');
     END IF;
 END
@@ -17,7 +17,7 @@ $$;
 
 ALTER TABLE public.orders
     ADD COLUMN IF NOT EXISTS refund_status
-        public."enum_orders_refundStatus"
+        public."enum_orders_refund_status"
         NOT NULL DEFAULT 'AUCUN',
     ADD COLUMN IF NOT EXISTS stripe_refund_id VARCHAR(255),
     ADD COLUMN IF NOT EXISTS refund_requested_at TIMESTAMP WITH TIME ZONE,
