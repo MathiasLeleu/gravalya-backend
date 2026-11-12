@@ -35,5 +35,10 @@
   },
   "allowScripts": {
     "argon2@0.45.1": true
+  },
+  "overrides": {
+    "eslint": {
+      "minimatch": "11.0.5"
+    }
   }
 }
