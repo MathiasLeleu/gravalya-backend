@@ -145,6 +145,7 @@ after(() => {
 function prepareTest({ amount = 1067, currency = "eur" } = {}) {
     state.saveCalls = 0;
     state.stockCalls = 0;
+    emailOutboxState.calls = [];
 
     state.orderLines = [];
     state.stockUpdates = [];
@@ -249,6 +250,9 @@ describe("Webhook Stripe — validation du paiement", () => {
         assert.ok(state.order.paidAt instanceof Date);
         assert.equal(state.saveCalls, 1);
         assert.equal(state.stockCalls, 0);
+        assert.equal(emailOutboxState.calls.length, 1);
+        assert.equal(emailOutboxState.calls[0].eventType, "COMMANDE_CONFIRMEE");
+        assert.equal(emailOutboxState.calls[0].eventKey, "commande-confirmee-24");
     });
 
     
@@ -311,6 +315,10 @@ describe("Webhook Stripe — validation du paiement", () => {
         assert.ok(state.order.refundRequestedAt);
         assert.ok(state.order.refundCompletedAt);
         assert.equal(state.order.refundError, null);
+
+        assert.equal(emailOutboxState.calls.length, 1);
+        assert.equal(emailOutboxState.calls[0].eventType, "REMBOURSEMENT_REUSSI");
+        assert.equal(emailOutboxState.calls[0].eventKey, "remboursement-reussi-24");
     });
     
     it("ne demande pas un second remboursement si le remboursement est déjà réussi", async () => {
@@ -354,6 +362,8 @@ describe("Webhook Stripe — validation du paiement", () => {
 
         assert.equal(state.refundCalls.length, 1);
         assert.equal(state.stockCalls, 0);
+
+        assert.equal(emailOutboxState.calls.length, 0);
     });
     
     it("réussit le remboursement lors d'une nouvelle tentative avec la même clé d'idempotence", async () => {
@@ -394,6 +404,10 @@ describe("Webhook Stripe — validation du paiement", () => {
         );
 
         assert.equal(state.stockCalls, 0);
+
+        assert.equal(emailOutboxState.calls.length, 1);
+        assert.equal(emailOutboxState.calls[0].eventType, "REMBOURSEMENT_REUSSI");
+        assert.equal(emailOutboxState.calls[0].eventKey, "remboursement-reussi-24");
     });
 });
 
@@ -426,6 +440,16 @@ describe("Webhook Stripe — expiration de session", () => {
                 productId: 2,
             },
         ]);
+
+        assert.equal(emailOutboxState.calls.length, 1);
+        assert.equal(
+            emailOutboxState.calls[0].eventType,
+            "COMMANDE_ANNULEE"
+        );
+        assert.equal(
+            emailOutboxState.calls[0].eventKey,
+            "commande-annulee-24"
+        );
     });
 
     it("ne restitue pas le stock deux fois lors d'une expiration répétée", async () => {
@@ -442,12 +466,16 @@ describe("Webhook Stripe — expiration de session", () => {
         assert.equal(state.order.statut, "ANNULEE");
         assert.equal(state.stockCalls, 1);
 
+        assert.equal(emailOutboxState.calls.length, 1);
+
         const secondRes = await sendWebhook();
 
         assert.equal(secondRes.statusCode, 200);
         assert.equal(state.order.statut, "ANNULEE");
         assert.equal(state.saveCalls, 1);
         assert.equal(state.stockCalls, 1);
+
+        assert.equal(emailOutboxState.calls.length, 1);
     });
 
     it("ignore une session expirée qui ne correspond pas à la commande", async () => {
@@ -465,6 +493,8 @@ describe("Webhook Stripe — expiration de session", () => {
         assert.equal(state.order.statut, "EN_ATTENTE");
         assert.equal(state.saveCalls, 0);
         assert.equal(state.stockCalls, 0);
+
+        assert.equal(emailOutboxState.calls.length, 0);
     });
 
     it("ne modifie pas une commande déjà confirmée à l'expiration", async () => {
@@ -482,6 +512,8 @@ describe("Webhook Stripe — expiration de session", () => {
         assert.equal(state.order.statut, "CONFIRMEE");
         assert.equal(state.saveCalls, 0);
         assert.equal(state.stockCalls, 0);
+
+        assert.equal(emailOutboxState.calls.length, 0);
     });
 });
 
