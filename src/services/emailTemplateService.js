@@ -9,9 +9,9 @@ const escapeHtml = (value = "") =>
 
 const EMAIL_TEMPLATES = {
     COMMANDE_CONFIRMEE: {
-        subject: "Votre commande est confirmée !",
-        title: "Commande confirmée",
-        message: "Votre commande a bien été confirmée par notre équipe.",
+        subject: "Nous avons bien reçu votre commande !",
+        title: "Commande en préparation",
+        message: "Votre paiement a bien été reçu et votre commande est en préparation.",
     },
     COMMANDE_ANNULEE: {
         subject: "Votre commande a été annulée",
