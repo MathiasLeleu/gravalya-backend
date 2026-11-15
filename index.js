@@ -22,7 +22,9 @@ const app = express();
 app.use(cors({
     origin: [
         "http://localhost:5173",
-        "https://gravelya-studio.netlify.app"
+        "https://gravelya-studio.netlify.app",
+        "https://gravelyastudio.fr",
+        "https://www.gravelyastudio.fr"
     ]
 }));
 
