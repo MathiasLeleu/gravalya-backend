@@ -6,6 +6,7 @@ const state = {
     email: null,
     shouldFail: false,
     sends: 0,
+    recoveryCalls: 0,
 };
 
 const sequelize = {
@@ -15,8 +16,43 @@ const sequelize = {
 };
 
 const EmailOutbox = {
-    update: async () => [0],
-    findAll: async () => state.email ? [state.email] : [],
+    update: async () => {
+        state.recoveryCalls++;
+
+        const email = state.email;
+        const staleBefore = new Date(Date.now() - 10 * 60_000);
+
+        if (
+            email?.status === "EN_COURS" &&
+            email.lockedAt &&
+            email.lockedAt <= staleBefore
+        ) {
+            const exhausted = email.attempts >= 5;
+
+            email.status = exhausted ? "ECHEC" : "EN_ATTENTE";
+            email.lockedAt = null;
+
+            if (exhausted) {
+                email.lastError =
+                    "Nombre maximum de tentatives atteint après interruption du worker.";
+            }
+        }
+
+        return [0];
+    },
+
+    findAll: async () => {
+        const email = state.email;
+
+        if (
+            email?.status === "EN_ATTENTE" &&
+            email.availableAt <= new Date()
+        ) {
+            return [email];
+        }
+
+        return [];
+    },
 };
 
 const sendBrevoEmail = async () => {
@@ -58,6 +94,7 @@ after(() => {
 function prepareTest(attempts = 0) {
     state.sends = 0;
     state.shouldFail = false;
+    state.recoveryCalls = 0;
 
     state.email = {
         eventKey: "test-event",
@@ -110,5 +147,35 @@ describe("Email Outbox Worker", () => {
         assert.equal(state.email.status, "ECHEC");
         assert.equal(state.email.attempts, 5);
         assert.equal(state.email.lockedAt, null);
+    });
+    it("récupère un email EN_COURS bloqué depuis plus de 10 minutes", async () => {
+        prepareTest(2);
+
+        state.email.status = "EN_COURS";
+        state.email.lockedAt = new Date(Date.now() - 11 * 60_000);
+
+        await processPendingEmails();
+
+        assert.equal(state.recoveryCalls, 1);
+        assert.equal(state.sends, 1);
+        assert.equal(state.email.status, "ENVOYE");
+        assert.equal(state.email.attempts, 3);
+        assert.equal(state.email.lockedAt, null);
+    });
+
+    it("passe un email bloqué en ECHEC si cinq tentatives sont déjà atteintes", async () => {
+        prepareTest(5);
+
+        state.email.status = "EN_COURS";
+        state.email.lockedAt = new Date(Date.now() - 11 * 60_000);
+
+        await processPendingEmails();
+
+        assert.equal(state.recoveryCalls, 1);
+        assert.equal(state.sends, 0);
+        assert.equal(state.email.status, "ECHEC");
+        assert.equal(state.email.attempts, 5);
+        assert.equal(state.email.lockedAt, null);
+        assert.match(state.email.lastError, /maximum de tentatives atteint/);
     });
 });
