@@ -7,6 +7,29 @@ const escapeHtml = (value = "") =>
         "'": "&#039;",
     })[char]);
 
+const getSafeTrackingUrl = (value) => {
+    if (typeof value !== "string" || !value.trim()) {
+        return "";
+    }
+
+    try {
+        const url = new URL(value.trim());
+
+        if (
+            url.protocol !== "https:" ||
+            !url.hostname ||
+            url.username ||
+            url.password
+        ) {
+            return "";
+        }
+
+        return url.href;
+    } catch {
+        return "";
+    }
+};
+
 const EMAIL_TEMPLATES = {
     COMMANDE_CONFIRMEE: {
         subject: "Nous avons bien reçu votre commande !",
@@ -45,9 +68,7 @@ export function buildEmailContent(eventType, payload = {}) {
     const orderNumber = escapeHtml(payload.orderNumber || "");
     const customerName = escapeHtml(payload.customerName || "");
     const trackingNumber = escapeHtml(payload.trackingNumber || "");
-    const trackingUrl = payload.trackingUrl
-        ? escapeHtml(payload.trackingUrl)
-        : "";
+    const trackingUrl = getSafeTrackingUrl(payload.trackingUrl);
 
     const details = [
         customerName ? `<p>Bonjour ${customerName},</p>` : "<p>Bonjour,</p>",
@@ -57,7 +78,7 @@ export function buildEmailContent(eventType, payload = {}) {
             ? `<p><strong>Numéro de suivi :</strong> ${trackingNumber}</p>`
             : "",
         trackingUrl
-            ? `<p><a href="${trackingUrl}">Suivre ma commande</a></p>`
+            ? `<p><a href="${escapeHtml(trackingUrl)}">Suivre ma commande</a></p>`
             : "",
     ].filter(Boolean).join("\n");
 
