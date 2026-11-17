@@ -255,6 +255,35 @@ describe("Webhook Stripe — validation du paiement", () => {
         assert.equal(emailOutboxState.calls[0].eventKey, "commande-confirmee-24");
     });
 
+
+    it("ne crée pas un second email lorsque le webhook de paiement est rejoué", async () => {
+        prepareTest();
+
+        // Premier événement : le paiement est confirmé.
+        const firstRes = await sendWebhook();
+
+        assert.equal(firstRes.statusCode, 200);
+        assert.equal(state.order.statut, "PREPARATION");
+        assert.equal(state.saveCalls, 1);
+        assert.equal(emailOutboxState.calls.length, 1);
+        assert.equal(
+            emailOutboxState.calls[0].eventType,
+            "COMMANDE_CONFIRMEE"
+        );
+        assert.equal(
+            emailOutboxState.calls[0].eventKey,
+            "commande-confirmee-24"
+        );
+
+        // Deuxième événement identique : il ne doit rien créer de nouveau.
+        const secondRes = await sendWebhook();
+
+        assert.equal(secondRes.statusCode, 200);
+        assert.equal(state.order.statut, "PREPARATION");
+        assert.equal(state.saveCalls, 1);
+        assert.equal(emailOutboxState.calls.length, 1);
+    });
+
     
     it("ignore une session Stripe qui ne correspond pas à la commande", async () => {
         prepareTest();
